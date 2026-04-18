@@ -1,0 +1,19 @@
+# .gitignore
+node_modules/
+.next/
+dist/
+build/
+__pycache__/
+.env
+.env.example
+
+# MemPalace per-project files (issue #185)
+mempalace.yaml
+entities.json
+mempalace
+knowledge_graph.sqlite3
+knowledge_graph.sqlite3-shm
+knowledge_graph.sqlite3-wal
+graphify-out\cache
+V3 readme.txt
+requirements.txt
