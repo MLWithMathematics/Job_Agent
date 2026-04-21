@@ -3,7 +3,8 @@ search_agent.py
 ───────────────
 Searches LinkedIn and Naukri for both full-time roles and internships.
 Each JobListing carries an `is_internship` flag so the scorer can apply
-the correct (lower) threshold.
+the correct (lower) threshold, and an `apply_type` field so apply_agent
+routes to the correct apply flow.
 """
 from __future__ import annotations
 
@@ -57,10 +58,7 @@ class JobListing:
     platform: str               # 'linkedin' or 'naukri'
     recruiter_name: str = ""
     is_internship: bool = False  # detected automatically
-<<<<<<< HEAD
-=======
     apply_type: str = "easy_apply"  # 'easy_apply' | 'external' | 'naukri'
->>>>>>> a135004 (Updated..)
     raw_html: str = ""
 
 
@@ -196,7 +194,6 @@ async def _scrape_linkedin(
         try:
             listing = await _parse_linkedin_card(page, card, handler)
             if listing:
-                # Override is_internship flag if we used the internship search URL
                 if internship:
                     listing.is_internship = True
                 listings.append(listing)
@@ -235,11 +232,9 @@ async def _parse_linkedin_card(
 
     jd_text = ""
     recruiter_name = ""
-<<<<<<< HEAD
-=======
     apply_type = "easy_apply"
     external_url = ""
->>>>>>> a135004 (Updated..)
+
     try:
         await safe_goto(page, apply_url, handler=handler)
         await random_delay(1.5, 3.0)
@@ -260,15 +255,12 @@ async def _parse_linkedin_card(
         if recruiter_el:
             recruiter_name = recruiter_el.get_text(strip=True)
 
-<<<<<<< HEAD
-=======
         # ── Detect Easy Apply vs external apply ───────────────────────
         easy_apply_btn = jd_soup.find(
             lambda tag: tag.name == "button"
             and "easy apply" in tag.get_text(strip=True).lower()
         )
         if not easy_apply_btn:
-            # Try live DOM for button visibility (soup may be server-rendered)
             try:
                 live_btn = await page.query_selector(
                     "button.jobs-apply-button, .jobs-apply-button--top-card"
@@ -276,26 +268,28 @@ async def _parse_linkedin_card(
                 if live_btn:
                     btn_text = (await live_btn.inner_text()).strip().lower()
                     if "easy apply" not in btn_text:
-                        # It's an external apply button — try to capture the href
                         apply_type = "external"
                         href = await live_btn.get_attribute("href")
                         if href and href.startswith("http"):
                             external_url = href
                         else:
-                            # Some external buttons open a new tab on click;
-                            # capture via navigation event
-                            async with page.expect_popup() as popup_info:
-                                await live_btn.click()
-                            popup = await popup_info.value
-                            external_url = popup.url
-                            await popup.close()
+                            # Try capturing popup tab
+                            try:
+                                async with page.context.expect_page(timeout=5_000) as popup_info:
+                                    await live_btn.click()
+                                popup = await popup_info.value
+                                external_url = popup.url
+                                await popup.close()
+                                # Navigate back to job page
+                                await safe_goto(page, apply_url, handler=handler)
+                                await random_delay(1.0, 2.0)
+                            except Exception:
+                                pass
                 else:
-                    # No recognisable apply button found at all
                     apply_type = "external"
             except Exception:
                 apply_type = "easy_apply"  # fallback — try Easy Apply path
 
->>>>>>> a135004 (Updated..)
         await page.go_back(wait_until="domcontentloaded")
         await random_delay(1.0, 2.5)
         await handler.dismiss_all()
@@ -306,69 +300,23 @@ async def _parse_linkedin_card(
         return None
 
     is_intern = _detect_internship(job_title, jd_text)
-<<<<<<< HEAD
-=======
     final_url = external_url if (apply_type == "external" and external_url) else apply_url
->>>>>>> a135004 (Updated..)
 
     return JobListing(
         job_title=job_title,
         company=company,
         location=location,
         jd_text=jd_text,
-<<<<<<< HEAD
-        apply_url=apply_url,
-        platform="linkedin",
-        recruiter_name=recruiter_name,
-        is_internship=is_intern,
-=======
         apply_url=final_url,
         platform="linkedin",
         recruiter_name=recruiter_name,
         is_internship=is_intern,
         apply_type=apply_type,
->>>>>>> a135004 (Updated..)
     )
 
 
 # ── Naukri scrapers ───────────────────────────────────────────────────────────
 
-<<<<<<< HEAD
-async def _scrape_naukri(
-    page: Page, keyword: str, internship: bool = False
-) -> List[JobListing]:
-    listings: List[JobListing] = []
-    encoded_kw = keyword.lower().replace(" ", "-")
-    location_part = settings.search_location.lower().replace(" ", "-")
-
-    if internship:
-        # Naukri has a dedicated internship search
-        url = f"https://www.naukri.com/{encoded_kw}-internship-jobs-in-{location_part}"
-        fallback_url = f"https://www.naukri.com/{encoded_kw}-internship-jobs"
-    else:
-        url = f"https://www.naukri.com/{encoded_kw}-jobs-in-{location_part}"
-        fallback_url = f"https://www.naukri.com/{encoded_kw}-jobs"
-
-    handler = PopupHandler(page)
-    await safe_goto(page, url, handler=handler)
-    await random_delay(2.0, 4.0)
-    await handler.dismiss_and_escape()
-    await human_scroll_to_bottom(page, max_scrolls=5)
-
-    html = await page.content()
-    soup = BeautifulSoup(html, "lxml")
-
-    job_cards = soup.find_all("article", {"class": lambda c: c and "jobTuple" in c})
-    if not job_cards:
-        job_cards = soup.find_all(
-            "div", {"class": lambda c: c and "srp-jobtuple-wrapper" in c}
-        )
-    # Naukri internship page uses different markup
-    if not job_cards:
-        job_cards = soup.find_all(
-            "div", {"class": lambda c: c and "internship" in (c or "").lower()}
-        )
-=======
 # Selectors tried in order; Naukri updates its CSS classes frequently.
 _NAUKRI_CARD_SELECTORS = [
     ("div",     lambda c: c and "cust-job-tuple" in c),
@@ -377,14 +325,6 @@ _NAUKRI_CARD_SELECTORS = [
     ("div",     lambda c: c and "job-tuple" in (c or "").lower()),
 ]
 
-# The ONLY reliable Naukri search entry-point is the /jobs query-param URL.
-# - Slug URLs  (/machine-learning-intern-jobs-in-india) → 0 results frequently
-# - /internship/internship-in-india → 404
-# - campus.naukri.com                → different sub-site, never what we want
-#
-# For internships: the keyword from .env already contains "intern"
-# (e.g. "machine learning intern") which is enough for Naukri to surface
-# internship listings — no separate URL path needed.
 _NAUKRI_SEARCH_BASE = "https://www.naukri.com/jobs"
 
 
@@ -392,42 +332,31 @@ async def _scrape_naukri(
     page: Page, keyword: str, internship: bool = False
 ) -> List[JobListing]:
     """
-    Scrape Naukri via /jobs?k=KEYWORD&l=LOCATION — the only URL format
-    that consistently returns results regardless of keyword or location.
-
-    Internship vs. full-time distinction comes purely from the keyword
-    text (the .env internship_keywords already contain 'intern'), so we
-    do NOT use a separate URL path for internships.
+    Scrape Naukri via /jobs?k=KEYWORD&l=LOCATION — the most reliable URL format.
+    Internship vs. full-time comes from the keyword text in .env.
     """
     listings: List[JobListing] = []
     location = settings.search_location
     encoded_kw  = quote_plus(keyword)
     encoded_loc = quote_plus(location)
 
-    # Primary: keyword + location
     primary_url = f"{_NAUKRI_SEARCH_BASE}?k={encoded_kw}&l={encoded_loc}"
-    # Fallback: keyword only (drop location constraint if primary is empty)
     fallback_url = f"{_NAUKRI_SEARCH_BASE}?k={encoded_kw}"
 
     handler = PopupHandler(page)
 
-    # ── Navigate and guard against campus.naukri.com redirects ───────
     await safe_goto(page, primary_url, handler=handler)
     await random_delay(2.0, 4.0)
     await handler.dismiss_and_escape()
 
-    # If Naukri redirected to campus.naukri.com (their fresher sub-site),
-    # force-navigate back to the main site with the same query.
+    # If Naukri redirected to campus.naukri.com, force back to main site
     if "campus.naukri.com" in page.url:
         print(f"[Naukri] Redirected to campus sub-site — forcing back to main site.")
         await safe_goto(page, primary_url, handler=handler)
         await random_delay(2.0, 3.5)
         await handler.dismiss_and_escape()
 
-    # ── Campus account detection ──────────────────────────────────────
-    # Campus accounts show 'naukri campus' branding on the same naukri.com
-    # domain. Their search engine returns 0 results for literal 'intern'
-    # keyword queries. Strip the suffix and let _detect_internship() classify.
+    # Campus account detection — strip 'intern' suffix if needed
     in_campus = await _is_campus_mode(page)
     if in_campus and internship:
         clean_kw = re.sub(
@@ -440,11 +369,10 @@ async def _scrape_naukri(
             await safe_goto(page, alt_primary, handler=handler)
             await random_delay(2.0, 3.5)
             await handler.dismiss_and_escape()
-            # Update the fallback too
             primary_url = alt_primary
             fallback_url = alt_fallback
 
-    # ── Wait for React-rendered cards ─────────────────────────────────
+    # Wait for React-rendered cards
     card_wait_sel = (
         ".cust-job-tuple, article.jobTuple, "
         ".srp-jobtuple-wrapper, [data-job-id]"
@@ -452,7 +380,6 @@ async def _scrape_naukri(
     try:
         await page.wait_for_selector(card_wait_sel, timeout=10_000)
     except Exception:
-        # Primary returned nothing — try keyword-only fallback
         print(f"[Naukri] No cards at primary URL for '{keyword}', trying fallback...")
         await safe_goto(page, fallback_url, handler=handler)
         await random_delay(2.0, 4.0)
@@ -460,7 +387,6 @@ async def _scrape_naukri(
         try:
             await page.wait_for_selector(card_wait_sel, timeout=8_000)
         except Exception:
-            # Last resort: use Naukri's own search bar via Playwright
             print(f"[Naukri] Trying searchbar fallback for '{keyword}'...")
             found = await _search_via_naukri_searchbar(page, keyword, location, handler)
             if not found:
@@ -471,7 +397,6 @@ async def _scrape_naukri(
     html = await page.content()
     soup = BeautifulSoup(html, "lxml")
 
-    # ── Parse cards with cascading selector fallbacks ─────────────────
     job_cards: list = []
     for tag, cls_fn in _NAUKRI_CARD_SELECTORS:
         job_cards = soup.find_all(tag, {"class": cls_fn})
@@ -479,7 +404,6 @@ async def _scrape_naukri(
             break
     if not job_cards:
         job_cards = soup.find_all(attrs={"data-job-id": True})
->>>>>>> a135004 (Updated..)
 
     print(
         f"[Naukri] {'Internship' if internship else 'Job'} "
@@ -499,29 +423,17 @@ async def _scrape_naukri(
     return listings
 
 
-<<<<<<< HEAD
-def _parse_naukri_card(card) -> Optional[JobListing]:
-    title_el = card.find("a", {"class": lambda c: c and "title" in (c or "")})
-    if not title_el:
-        # Fallback: any link with a job-sounding href
-        title_el = card.find("a", href=re.compile(r"naukri\.com/.+-\d+"))
-=======
 async def _is_campus_mode(page: Page) -> bool:
     """
     Detect if Naukri has switched to campus/fresher mode.
-    This happens when a campus account is logged in — the header shows
-    'naukri campus' branding on the same naukri.com domain (URL does NOT
-    change to campus.naukri.com, so a URL check alone is insufficient).
     """
     try:
-        # Campus header has a specific logo class or 'campus' in the brand text
         campus_el = await page.query_selector(
             ".naukri-campus-logo, [class*='campusLogo'], "
             "a[href*='naukricampus'], .nc-header"
         )
         if campus_el:
             return True
-        # Fallback: check visible header text
         header_text = await page.evaluate(
             "document.querySelector('header, .nI-gNb-header')?.innerText || ''"
         )
@@ -533,25 +445,12 @@ async def _is_campus_mode(page: Page) -> bool:
 async def _search_via_naukri_searchbar(
     page: Page, keyword: str, location: str, handler: PopupHandler
 ) -> bool:
-    """
-    Last-resort fallback: navigate to naukri.com home and use the search
-    bar directly (bypasses any router/slug issues entirely).
-
-    Fixes:
-    - Uses page.fill() / Locator.fill() instead of ElementHandle.triple_click()
-      (triple_click does not exist on ElementHandle, only on Locator)
-    - Handles campus-mode accounts by stripping 'intern'/'internship' from the
-      keyword so the campus search engine returns actual results (the campus
-      search returns 0 for literal 'intern' keyword queries).
-    Returns True if cards appeared after the search.
-    """
+    """Last-resort fallback: use Naukri's search bar directly."""
     try:
         await safe_goto(page, "https://www.naukri.com/", handler=handler)
         await random_delay(2.0, 3.5)
         await handler.dismiss_and_escape()
 
-        # Campus accounts: strip 'intern'/'internship' suffix so search returns
-        # results. _detect_internship() will still correctly flag the listings.
         in_campus = await _is_campus_mode(page)
         search_kw = keyword
         if in_campus:
@@ -560,8 +459,6 @@ async def _search_via_naukri_searchbar(
             ).strip() or keyword
             print(f"[Naukri] Campus mode detected — searching as '{search_kw}'")
 
-        # ── Keyword input ─────────────────────────────────────────────
-        # Use page.fill() via Locator (supports fill natively, no triple_click needed)
         kw_selectors = [
             "input[placeholder*='Skills']",
             "input[placeholder*='Job title']",
@@ -585,7 +482,6 @@ async def _search_via_naukri_searchbar(
             return False
         await random_delay(0.5, 1.0)
 
-        # ── Location input ────────────────────────────────────────────
         loc_selectors = [
             "input[placeholder*='Location']",
             "input[placeholder*='City']",
@@ -603,7 +499,6 @@ async def _search_via_naukri_searchbar(
                 continue
         await random_delay(0.5, 1.0)
 
-        # ── Submit ────────────────────────────────────────────────────
         submitted = False
         for btn_sel in [".qsb-search-btn", "button[type='submit']", "button:has-text('Search')"]:
             try:
@@ -620,7 +515,6 @@ async def _search_via_naukri_searchbar(
         await random_delay(2.5, 4.0)
         await handler.dismiss_and_escape()
 
-        # If we ended up on the campus sub-site domain, force back to main
         if "campus.naukri.com" in page.url:
             await safe_goto(
                 page,
@@ -644,8 +538,7 @@ async def _search_via_naukri_searchbar(
 
 def _parse_naukri_card(card) -> Optional[JobListing]:
     """
-    Parse a Naukri job card with chained fallback selectors for every field
-    so a CSS-class rename on Naukri's side doesn't silently drop results.
+    Parse a Naukri job card with chained fallback selectors for every field.
     """
     # ── Title + URL ───────────────────────────────────────────────────
     title_el = (
@@ -654,7 +547,6 @@ def _parse_naukri_card(card) -> Optional[JobListing]:
         or card.find("a", {"class": re.compile(r"title|jobTitle", re.I)})
         or card.find("a", href=re.compile(r"naukri\.com/.+-\d+"))
     )
->>>>>>> a135004 (Updated..)
     if not title_el:
         return None
 
@@ -662,20 +554,6 @@ def _parse_naukri_card(card) -> Optional[JobListing]:
     apply_url = title_el.get("href", "")
     if not apply_url:
         return None
-<<<<<<< HEAD
-
-    company_el = card.find("a", {"class": lambda c: c and "subTitle" in (c or "")})
-    if not company_el:
-        company_el = card.find("span", {"class": lambda c: c and "company" in (c or "").lower()})
-    company = company_el.get_text(strip=True) if company_el else ""
-
-    loc_el = card.find("span", {"class": lambda c: c and "loc" in (c or "").lower()})
-    location = loc_el.get_text(strip=True) if loc_el else ""
-
-    desc_el = card.find("span", {"class": lambda c: c and "job-description" in (c or "")})
-    if not desc_el:
-        desc_el = card.find("div", {"class": lambda c: c and "desc" in (c or "").lower()})
-=======
     if apply_url.startswith("/"):
         apply_url = "https://www.naukri.com" + apply_url
 
@@ -702,18 +580,15 @@ def _parse_naukri_card(card) -> Optional[JobListing]:
         or card.find("span", {"class": lambda c: c and "jd-desc"        in (c or "")})
         or card.find("div",  {"class": lambda c: c and "desc"           in (c or "").lower()})
     )
->>>>>>> a135004 (Updated..)
     jd_text = desc_el.get_text(strip=True) if desc_el else ""
 
     is_intern = _detect_internship(job_title, jd_text)
 
-<<<<<<< HEAD
-=======
+    # Determine apply type: if URL doesn't point to naukri.com, treat as external
     naukri_apply_type = "naukri"
     if apply_url and "naukri.com" not in apply_url:
         naukri_apply_type = "external"
 
->>>>>>> a135004 (Updated..)
     return JobListing(
         job_title=job_title,
         company=company,
@@ -722,8 +597,5 @@ def _parse_naukri_card(card) -> Optional[JobListing]:
         apply_url=apply_url,
         platform="naukri",
         is_internship=is_intern,
-<<<<<<< HEAD
-=======
         apply_type=naukri_apply_type,
->>>>>>> a135004 (Updated..)
     )

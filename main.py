@@ -2,13 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import os
-<<<<<<< HEAD
-import sys
-=======
 import signal
 import sys
 import threading
->>>>>>> a135004 (Updated..)
 from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -21,17 +17,11 @@ from agents.scorer_agent import run_scorer_agent, ScorerOutput
 from agents.tailoring_agent import run_tailoring_agent
 from agents.apply_agent import run_apply_agent
 from agents.outreach_agent import run_outreach_agent
-<<<<<<< HEAD
-from resume.resume_editor import extract_bullets_from_docx, extract_full_text_from_docx
-=======
 from resume.resume_editor import load_resume
->>>>>>> a135004 (Updated..)
 from memory.ledger import upsert_application, is_already_applied
 from config import settings
 
 
-<<<<<<< HEAD
-=======
 # ── Interrupt controller ──────────────────────────────────────────────────────
 
 class _InterruptController:
@@ -144,7 +134,6 @@ def _resolve_resume_path() -> str:
     return ""   # caller handles missing file
 
 
->>>>>>> a135004 (Updated..)
 # ── Typed state ───────────────────────────────────────────────────────────────
 
 class AgentState(TypedDict):
@@ -152,11 +141,7 @@ class AgentState(TypedDict):
     current_job: Optional[JobListing]
     score_result: Optional[ScorerOutput]
     tailored_resume_path: str
-<<<<<<< HEAD
-    application_status: str       # 'applied' | 'skipped' | 'failed' | 'pending'
-=======
     application_status: str
->>>>>>> a135004 (Updated..)
     application_id: int
     resume_text: str
     resume_bullets: List[str]
@@ -185,11 +170,7 @@ async def score_node(state: AgentState) -> AgentState:
         **state,
         "score_result": result,
         "application_id": app_id,
-<<<<<<< HEAD
-        "application_status": result.status,  # 'approved' or 'skipped'
-=======
         "application_status": result.status,
->>>>>>> a135004 (Updated..)
     }
 
 
@@ -285,11 +266,7 @@ def should_do_outreach(state: AgentState) -> str:
     return "outreach" if state["application_status"] == "applied" else "log_result"
 
 
-<<<<<<< HEAD
-# ── Graph builder ─────────────────────────────────────────────────────────────
-=======
 # ── Graph ─────────────────────────────────────────────────────────────────────
->>>>>>> a135004 (Updated..)
 
 def build_graph() -> StateGraph:
     g = StateGraph(AgentState)
@@ -322,30 +299,13 @@ def build_graph() -> StateGraph:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 async def main() -> None:
-<<<<<<< HEAD
-=======
     _setup_signal_handlers()
     _start_keyboard_listener()
 
->>>>>>> a135004 (Updated..)
     print("=" * 62)
     print("  Agentic Job Application System — Starting")
     print(f"  Full-time threshold : {settings.match_threshold}")
     print(f"  Internship threshold: {settings.internship_match_threshold}")
-<<<<<<< HEAD
-    print("=" * 62)
-
-    resume_docx = settings.base_resume_docx
-    if not os.path.exists(resume_docx):
-        print(f"\n[ERROR] Resume not found: {resume_docx}")
-        print("Place your resume at resume/base_resume.docx and re-run.\n")
-        sys.exit(1)
-
-    resume_text = extract_full_text_from_docx(resume_docx)
-    resume_bullets = extract_bullets_from_docx(resume_docx)
-    print(f"[Main] Resume: {len(resume_text)} chars, {len(resume_bullets)} bullets.")
-
-=======
     print("  Commands: [S]kip job  |  [Q]uit after current  |  Ctrl+C")
     print("=" * 62)
 
@@ -368,7 +328,6 @@ async def main() -> None:
     print(f"[Main] Resume: {len(resume_text)} chars, {len(resume_bullets)} bullets.")
 
     # ── Search ────────────────────────────────────────────────────────
->>>>>>> a135004 (Updated..)
     print("\n[Main] Running Search Agent (jobs + internships)...")
     job_listings = await run_search_agent()
 
@@ -378,14 +337,6 @@ async def main() -> None:
 
     internships = [j for j in job_listings if j.is_internship]
     jobs = [j for j in job_listings if not j.is_internship]
-<<<<<<< HEAD
-    print(f"[Main] {len(jobs)} full-time jobs + {len(internships)} internships to process.\n")
-
-    app = build_graph()
-
-    for i, job in enumerate(job_listings, 1):
-        kind = "🎓 Internship" if job.is_internship else "💼 Job"
-=======
     print(f"[Main] {len(jobs)} full-time + {len(internships)} internships to process.\n")
 
     app = build_graph()
@@ -403,15 +354,12 @@ async def main() -> None:
         _ctrl.clear_skip()
 
         kind = "🎓 Intern" if job.is_internship else "💼 Job"
->>>>>>> a135004 (Updated..)
         print(f"\n{'─' * 60}")
         print(f"[{i}/{len(job_listings)}] {kind}: {job.company} | {job.job_title}")
         print(f"{'─' * 60}")
 
         if is_already_applied(job.apply_url):
             print("[Main] Already processed. Skipping.")
-<<<<<<< HEAD
-=======
             skipped_count += 1
             continue
 
@@ -420,18 +368,13 @@ async def main() -> None:
             print("[Main] Skipped via keyboard command.")
             _ctrl.clear_skip()
             skipped_count += 1
->>>>>>> a135004 (Updated..)
             continue
 
         initial_state: AgentState = {
             "job_listings": job_listings,
             "current_job": job,
             "score_result": None,
-<<<<<<< HEAD
-            "tailored_resume_path": resume_docx,
-=======
             "tailored_resume_path": resume_path,
->>>>>>> a135004 (Updated..)
             "application_status": "pending",
             "application_id": -1,
             "resume_text": resume_text,
@@ -439,10 +382,6 @@ async def main() -> None:
         }
 
         try:
-<<<<<<< HEAD
-            final_state = await app.ainvoke(initial_state)
-            print(f"[Main] → {final_state['application_status'].upper()}")
-=======
             # Run pipeline — keyboard commands are checked before/after, not during
             final_state = await app.ainvoke(initial_state)
             status = final_state["application_status"]
@@ -458,7 +397,6 @@ async def main() -> None:
         except asyncio.CancelledError:
             print("[Main] Job cancelled by interrupt.")
             break
->>>>>>> a135004 (Updated..)
         except Exception as exc:
             print(f"[Main] Pipeline error: {exc}")
             upsert_application(
@@ -469,11 +407,6 @@ async def main() -> None:
                 status="failed",
                 notes=str(exc),
             )
-<<<<<<< HEAD
-
-    print("\n" + "=" * 62)
-    print("  All done. Run: streamlit run dashboard/app.py")
-=======
             failed_count += 1
 
     print("\n" + "=" * 62)
@@ -482,13 +415,9 @@ async def main() -> None:
     print(f"  ⏭  Skipped : {skipped_count}")
     print(f"  ❌ Failed  : {failed_count}")
     print("  Run: streamlit run dashboard/app.py")
->>>>>>> a135004 (Updated..)
     print("=" * 62)
 
 
 if __name__ == "__main__":
     asyncio.run(main())
-<<<<<<< HEAD
-=======
 
->>>>>>> a135004 (Updated..)

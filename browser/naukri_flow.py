@@ -3,8 +3,6 @@ naukri_flow.py
 ──────────────
 Naukri login + apply flow + profile refresh.
 Uses PopupHandler to sweep aggressively throughout apply flow.
-<<<<<<< HEAD
-=======
 
 Fixes applied:
   - Success detection after initial Apply click (quick / profile-based apply)
@@ -12,16 +10,14 @@ Fixes applied:
   - Modal-presence check so the loop exits if the form was dismissed
   - _get_next_action() now scopes button search inside the apply modal,
     preventing background "Apply" buttons from being mistaken for next actions
->>>>>>> a135004 (Updated..)
+  - External apply detection: when Naukri's Apply button redirects to a
+    non-Naukri URL (new tab or same-tab), the external ATS flow is used.
 """
 from __future__ import annotations
 
 import asyncio
 import os
-<<<<<<< HEAD
-=======
 import re
->>>>>>> a135004 (Updated..)
 import random
 from typing import Optional
 
@@ -39,8 +35,6 @@ from memory.form_memory import get_answer, save_answer
 from config import settings
 
 
-<<<<<<< HEAD
-=======
 # ── Success detection ─────────────────────────────────────────────────────────
 
 _NAUKRI_SUCCESS_RE = re.compile(
@@ -69,11 +63,9 @@ _APPLY_MODAL_SELECTORS = [
 async def _is_naukri_success(page: Page) -> bool:
     """Return True if the page shows a successful application state."""
     try:
-        # 1. Page content text match
         content = await page.inner_text("body")
         if _NAUKRI_SUCCESS_RE.search(content):
             return True
-        # 2. Specific Naukri success element selectors
         for sel in (
             "button:has-text('Applied')",
             "[class*='applied-btn']",
@@ -107,7 +99,6 @@ async def _get_apply_modal(page: Page):
 
 # ── Login ─────────────────────────────────────────────────────────────────────
 
->>>>>>> a135004 (Updated..)
 async def naukri_login(context: BrowserContext) -> Page:
     """Log into Naukri.com with popup suppression throughout."""
     page = await context.new_page()
@@ -119,32 +110,18 @@ async def naukri_login(context: BrowserContext) -> Page:
 
     await human_type(
         page,
-<<<<<<< HEAD
-        "input[placeholder='Enter your active Email ID / Username']",
-=======
         "input#usernameField, input[placeholder*='Username'], input[placeholder*='Email ID']",
->>>>>>> a135004 (Updated..)
         settings.naukri_email,
     )
     await random_delay(0.8, 1.5)
     await human_type(
         page,
-<<<<<<< HEAD
-        "input[placeholder='Enter your password']",
-=======
         "input#passwordField, input[type='password']",
->>>>>>> a135004 (Updated..)
         settings.naukri_password,
     )
     await random_delay(0.8, 1.5)
 
     await human_click(page, "button[type='submit']")
-<<<<<<< HEAD
-    await page.wait_for_load_state("networkidle")
-    await random_delay(2.5, 4.5)
-
-    # Dismiss post-login notification nags and push-permission bars aggressively
-=======
 
     print("[Stealth] Verifying Naukri login success...")
     timer = 0
@@ -180,7 +157,6 @@ async def naukri_login(context: BrowserContext) -> Page:
         pass
     await random_delay(2.5, 4.5)
 
->>>>>>> a135004 (Updated..)
     await handler.dismiss_and_escape()
     await random_delay(1.0, 2.0)
     await handler.dismiss_all()
@@ -189,11 +165,8 @@ async def naukri_login(context: BrowserContext) -> Page:
     return page
 
 
-<<<<<<< HEAD
-=======
 # ── Apply flow ────────────────────────────────────────────────────────────────
 
->>>>>>> a135004 (Updated..)
 async def apply_naukri(
     page: Page,
     apply_url: str,
@@ -203,6 +176,7 @@ async def apply_naukri(
 ) -> bool:
     """
     Full Naukri apply flow with background popup sweeper.
+    Handles: native Naukri apply, quick-apply, and external ATS redirects.
     Returns True on success.
     """
     handler = PopupHandler(page)
@@ -220,37 +194,78 @@ async def apply_naukri(
             await handler.stop_auto_dismiss()
             return False
 
-        await apply_btn.click()
+        # ── Detect external apply: new-tab popup ─────────────────────────
+        # Some Naukri listings open the company ATS in a new browser tab
+        try:
+            async with page.context.expect_page(timeout=4_000) as new_page_info:
+                await apply_btn.click()
+            new_page = await new_page_info.value
+            await random_delay(1.5, 3.0)
+            ext_url = new_page.url
+            if ext_url and "naukri.com" not in ext_url:
+                print(f"[Naukri] External ATS detected (new tab): {ext_url}")
+                await handler.stop_auto_dismiss()
+                from browser.external_flow import apply_external_link
+                success = await apply_external_link(
+                    page=new_page,
+                    apply_url=ext_url,
+                    tailored_resume_path=tailored_resume_path,
+                    resume_text=resume_text,
+                    llm_answer_fn=llm_answer_fn,
+                )
+                try:
+                    await new_page.close()
+                except Exception:
+                    pass
+                return success
+            else:
+                # New tab was also Naukri (unlikely) — close it and proceed on original
+                try:
+                    await new_page.close()
+                except Exception:
+                    pass
+        except Exception:
+            # No new tab opened — Apply button worked on same page (normal native flow)
+            pass
+
         await random_delay(2.0, 3.5)
         await handler.dismiss_all()
 
-<<<<<<< HEAD
-=======
-        # ── Quick / profile-based apply: done after the first click ──
+        # ── Detect external apply: same-tab redirect ──────────────────────
+        current_url = page.url
+        if "naukri.com" not in current_url:
+            print(f"[Naukri] External ATS detected (same tab redirect): {current_url}")
+            await handler.stop_auto_dismiss()
+            from browser.external_flow import apply_external_link
+            success = await apply_external_link(
+                page=page,
+                apply_url=current_url,
+                tailored_resume_path=tailored_resume_path,
+                resume_text=resume_text,
+                llm_answer_fn=llm_answer_fn,
+            )
+            return success
+
+        # ── Quick / profile-based apply: done after the first click ──────
         if await _is_naukri_success(page):
             print("[Naukri] Application submitted on first click (quick / profile apply)!")
             await handler.stop_auto_dismiss()
             return True
 
-        # ── Multi-step form loop ──────────────────────────────────────
->>>>>>> a135004 (Updated..)
+        # ── Multi-step native form loop ───────────────────────────────────
         max_steps = 10
         for step in range(max_steps):
             print(f"[Naukri] Apply step {step + 1}")
 
-<<<<<<< HEAD
-=======
-            # 1. Exit early if we already have a success indicator
+            # 1. Exit early if success indicator appeared
             if await _is_naukri_success(page):
                 print("[Naukri] Application submitted (success detected mid-flow)!")
                 await handler.stop_auto_dismiss()
                 return True
 
-            # 2. Exit if the apply modal/form has been closed (e.g. by popup
-            #    handler or after final submission navigated away)
+            # 2. Exit if the apply modal/form has been closed
             modal = await _get_apply_modal(page)
             if modal is None:
-                # Modal gone — one last success check before giving up
                 if await _is_naukri_success(page):
                     print("[Naukri] Application submitted (modal closed after submit)!")
                     await handler.stop_auto_dismiss()
@@ -260,44 +275,25 @@ async def apply_naukri(
                 return False
 
             # 3. Fill the current form page
->>>>>>> a135004 (Updated..)
             await _handle_resume_upload(page, tailored_resume_path)
             await _fill_naukri_form(page, resume_text, llm_answer_fn)
             await handler.dismiss_all()
 
             action = await _get_next_action(page)
-<<<<<<< HEAD
-            if action == "submit":
-=======
 
             if action == "submit":
-                # Pause auto-dismiss around the final click so the handler
-                # doesn't accidentally close the confirmation overlay
+                # Pause auto-dismiss around the final click
                 await handler.stop_auto_dismiss()
->>>>>>> a135004 (Updated..)
                 await _click_button_by_text(page, ["Apply", "Submit", "Apply Now"])
                 await random_delay(2.0, 4.0)
                 await handler.dismiss_all()
                 print("[Naukri] Application submitted!")
-<<<<<<< HEAD
-                await handler.stop_auto_dismiss()
-                return True
-=======
                 return True
 
->>>>>>> a135004 (Updated..)
             elif action == "next":
                 await _click_button_by_text(page, ["Next", "Save and Continue", "Continue"])
                 await random_delay(1.5, 3.0)
                 await handler.dismiss_all()
-<<<<<<< HEAD
-            elif action == "done":
-                await handler.stop_auto_dismiss()
-                return True
-            else:
-                # Try any forward CTA
-                await _click_button_by_text(page, ["Next", "Continue", "Apply", "Submit"])
-=======
 
             elif action == "done":
                 await handler.stop_auto_dismiss()
@@ -312,7 +308,6 @@ async def apply_naukri(
                     print(f"[Naukri] No actionable button at step {step + 1} — stopping.")
                     await handler.stop_auto_dismiss()
                     return False
->>>>>>> a135004 (Updated..)
                 await random_delay(1.5, 3.0)
 
         await handler.stop_auto_dismiss()
@@ -327,11 +322,8 @@ async def apply_naukri(
         return False
 
 
-<<<<<<< HEAD
-=======
 # ── Profile refresh ───────────────────────────────────────────────────────────
 
->>>>>>> a135004 (Updated..)
 async def profile_refresh(context: BrowserContext) -> bool:
     """Update Naukri 'Last Active' by toggling a trailing space in the headline."""
     page = await context.new_page()
@@ -531,16 +523,12 @@ async def _get_field_label(page: Page, element) -> str:
 
 
 async def _get_next_action(page: Page) -> str:
-<<<<<<< HEAD
-=======
     """
     Determine the next action from visible buttons.
-
     Scoped to the apply modal when one is open so that background
     'Apply' buttons on the job-detail page are not mistaken for
     form-submit actions.
     """
->>>>>>> a135004 (Updated..)
     button_map = {
         "apply": "submit",
         "apply now": "submit",
@@ -550,9 +538,6 @@ async def _get_next_action(page: Page) -> str:
         "continue": "next",
         "done": "done",
     }
-<<<<<<< HEAD
-    buttons = await page.query_selector_all("button")
-=======
 
     # Prefer to search inside the modal so background buttons are ignored
     modal = await _get_apply_modal(page)
@@ -562,10 +547,9 @@ async def _get_next_action(page: Page) -> str:
         except Exception:
             buttons = await page.query_selector_all("button")
     else:
-        # No modal — the form must have been dismissed or navigation happened
+        # No modal — form must have been dismissed or navigation happened
         return "done"
 
->>>>>>> a135004 (Updated..)
     for btn in buttons:
         try:
             if not await btn.is_visible():
@@ -578,25 +562,15 @@ async def _get_next_action(page: Page) -> str:
     return "unknown"
 
 
-<<<<<<< HEAD
-async def _click_button_by_text(page: Page, texts: list[str]) -> None:
-=======
 async def _click_button_by_text(page: Page, texts: list[str]) -> bool:
     """Click the first visible button matching any of the given texts.
     Returns True if a button was clicked, False otherwise."""
->>>>>>> a135004 (Updated..)
     for text in texts:
         try:
             btn = await page.query_selector(f"button:has-text('{text}')")
             if btn and await btn.is_visible():
                 await btn.click()
-<<<<<<< HEAD
-                return
-        except Exception:
-            continue
-=======
                 return True
         except Exception:
             continue
     return False
->>>>>>> a135004 (Updated..)

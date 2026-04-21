@@ -4,14 +4,15 @@ linkedin_flow.py
 LinkedIn login + Easy Apply handler.
 Uses PopupHandler to continuously sweep for popups/overlays during the
 entire apply flow, not just at the start.
-<<<<<<< HEAD
-=======
 
 Fixes applied:
   - When no Easy Apply button is found, detect the external Apply button,
     capture the new popup tab it opens, and run the full external ATS flow
     on that tab instead of silently skipping the job.
->>>>>>> a135004 (Updated..)
+  - _find_easy_apply_button() now validates button text contains "easy apply"
+    so a regular "Apply" button is never confused for Easy Apply.
+  - Login now waits in a polling loop for up to 5 min, allowing manual
+    captcha / OTP resolution.
 """
 from __future__ import annotations
 
@@ -44,18 +45,6 @@ async def linkedin_login(context: BrowserContext) -> Page:
     await random_delay(1.5, 3.0)
     await handler.dismiss_all()
 
-<<<<<<< HEAD
-    await human_type(page, "#username", settings.linkedin_email)
-    await random_delay(0.5, 1.2)
-    await human_type(page, "#password", settings.linkedin_password)
-    await random_delay(0.5, 1.2)
-    await human_click(page, "button[type='submit']")
-
-    await page.wait_for_load_state("networkidle")
-    await random_delay(2.5, 4.0)
-
-    # Dismiss post-login popups: notification permission nag, messaging overlays, etc.
-=======
     url = page.url.lower()
     if "feed" not in url and "/in/" not in url and not await page.query_selector("#global-nav"):
         try:
@@ -103,7 +92,6 @@ async def linkedin_login(context: BrowserContext) -> Page:
         pass
     await random_delay(2.5, 4.0)
 
->>>>>>> a135004 (Updated..)
     await handler.dismiss_and_escape()
     await random_delay(1.0, 2.0)
     await handler.dismiss_all()
@@ -121,14 +109,11 @@ async def apply_linkedin_easy_apply(
 ) -> bool:
     """
     Full LinkedIn Easy Apply flow with continuous popup suppression.
-<<<<<<< HEAD
-=======
 
     If the job has no Easy Apply button (external apply), this function
     automatically detects the external Apply button, captures the new
     popup tab it opens, and runs the external ATS flow on that tab.
 
->>>>>>> a135004 (Updated..)
     llm_answer_fn: async callable(question: str, resume_text: str) -> str
     Returns True on success, False on failure.
     """
@@ -143,11 +128,6 @@ async def apply_linkedin_easy_apply(
 
         easy_apply_btn = await _find_easy_apply_button(page)
         if easy_apply_btn is None:
-<<<<<<< HEAD
-            print(f"[LinkedIn] No Easy Apply button at {apply_url}")
-            await handler.stop_auto_dismiss()
-            return False
-=======
             # ── No Easy Apply: fall back to external apply via popup tab ──
             print(f"[LinkedIn] No Easy Apply button at {apply_url} — trying external apply...")
             result = await _handle_external_apply(
@@ -159,7 +139,6 @@ async def apply_linkedin_easy_apply(
             )
             await handler.stop_auto_dismiss()
             return result
->>>>>>> a135004 (Updated..)
 
         await easy_apply_btn.click()
         await random_delay(2.0, 3.5)
@@ -212,8 +191,6 @@ async def apply_linkedin_easy_apply(
         return False
 
 
-<<<<<<< HEAD
-=======
 # ── External apply (non-Easy-Apply LinkedIn jobs) ─────────────────────────────
 
 async def _handle_external_apply(
@@ -230,8 +207,6 @@ async def _handle_external_apply(
 
     Returns True on success, False on failure.
     """
-    # Lazy import to avoid circular dependency (external_flow does not import
-    # linkedin_flow, so this direction is safe)
     from browser.external_flow import apply_external_link  # noqa: PLC0415
 
     # Selectors for the non-Easy-Apply "Apply" button on LinkedIn job pages
@@ -317,7 +292,6 @@ async def _handle_external_apply(
         return False
 
 
->>>>>>> a135004 (Updated..)
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 async def _find_easy_apply_button(page: Page):
@@ -332,13 +306,9 @@ async def _find_easy_apply_button(page: Page):
         try:
             btn = await page.query_selector(sel)
             if btn and await btn.is_visible():
-<<<<<<< HEAD
-                return btn
-=======
                 btn_text = (await btn.inner_text()).strip().lower()
                 if "easy apply" in btn_text:
                     return btn
->>>>>>> a135004 (Updated..)
         except Exception:
             continue
     return None
