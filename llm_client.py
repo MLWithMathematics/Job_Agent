@@ -9,25 +9,47 @@ from config import settings
 
 async def call_llm(prompt: str, system: str = "") -> str:
     """
+<<<<<<< HEAD
     Call Gemini 1.5 Pro. Falls back to Ollama if Gemini fails or key is missing.
+=======
+    Call Gemini 2.5 Flash. Falls back to Groq, then Ollama if keys/limits are hit.
+>>>>>>> a135004 (Updated..)
     Returns the raw text response string.
     """
     if settings.gemini_api_key:
         try:
             return await _call_gemini(prompt, system)
         except Exception as exc:
+<<<<<<< HEAD
             print(f"[LLM] Gemini failed ({exc}). Falling back to Ollama...")
+=======
+            print(f"[LLM] Gemini failed ({exc}). Falling back to Groq/Ollama...")
+
+    if settings.groq_api_key:
+        try:
+            return await _call_groq(prompt, system)
+        except Exception as exc:
+            print(f"[LLM] Groq failed ({exc}). Falling back to Ollama...")
+>>>>>>> a135004 (Updated..)
 
     return await _call_ollama(prompt, system)
 
 
 async def _call_gemini(prompt: str, system: str = "") -> str:
+<<<<<<< HEAD
     """Call Gemini 1.5 Pro via google-generativeai SDK."""
+=======
+    """Call Gemini 2.5 Flash via google-generativeai SDK."""
+>>>>>>> a135004 (Updated..)
     import google.generativeai as genai
 
     genai.configure(api_key=settings.gemini_api_key)
     model = genai.GenerativeModel(
+<<<<<<< HEAD
         model_name="gemini-1.5-pro",
+=======
+        model_name="gemini-2.5-flash",
+>>>>>>> a135004 (Updated..)
         system_instruction=system if system else None,
     )
 
@@ -40,6 +62,30 @@ async def _call_gemini(prompt: str, system: str = "") -> str:
     return response.text
 
 
+<<<<<<< HEAD
+=======
+async def _call_groq(prompt: str, system: str = "") -> str:
+    """Call Groq API using the official client."""
+    import groq
+    
+    client = groq.Groq(api_key=settings.groq_api_key)
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    loop = asyncio.get_event_loop()
+    response = await loop.run_in_executor(
+        None,
+        lambda: client.chat.completions.create(
+            messages=messages,
+            model=settings.groq_model,
+        )
+    )
+    return response.choices[0].message.content
+
+
+>>>>>>> a135004 (Updated..)
 async def _call_ollama(prompt: str, system: str = "") -> str:
     """Call local Ollama model."""
     import ollama

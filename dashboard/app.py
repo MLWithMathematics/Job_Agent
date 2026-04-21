@@ -6,6 +6,10 @@ import sys
 # Ensure project root on path when running via streamlit
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+<<<<<<< HEAD
+=======
+import json
+>>>>>>> a135004 (Updated..)
 import sqlite3
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
@@ -85,6 +89,26 @@ with st.sidebar:
         st.rerun()
 
     st.divider()
+<<<<<<< HEAD
+=======
+    
+    st.subheader("🛠️ Skill Manager")
+    skills_path = os.path.join("memory", "skills.json")
+    if os.path.exists(skills_path):
+        with open(skills_path, "r", encoding="utf-8") as f:
+            extra_skills = json.load(f).get("skills", "")
+    else:
+        extra_skills = ""
+        
+    new_skills = st.text_area("Add new skills to your resume profile:", value=extra_skills, help="Comma separated list of extra skills to append to your resume context.")
+    if st.button("Save Skills"):
+        os.makedirs("memory", exist_ok=True)
+        with open(skills_path, "w", encoding="utf-8") as f:
+            json.dump({"skills": new_skills}, f)
+        st.success("Skills saved!")
+
+    st.divider()
+>>>>>>> a135004 (Updated..)
     st.caption(f"DB: `{settings.db_path}`")
     st.caption(f"Threshold: **{settings.match_threshold}** / 100")
 

@@ -12,20 +12,36 @@ from config import settings
 
 
 TAILORING_PROMPT = """\
+<<<<<<< HEAD
 You are a professional resume writer.
+=======
+You are an expert resume writer focused on ATS (Applicant Tracking System) optimization.
+>>>>>>> a135004 (Updated..)
 
 ORIGINAL RESUME BULLETS:
 {bullet_list}
 
+<<<<<<< HEAD
 SKILLS TO HIGHLIGHT:
+=======
+SKILLS TO HIGHLIGHT (from job description):
+>>>>>>> a135004 (Updated..)
 {matched_skills}
 
 JD KEYWORDS TO WEAVE IN:
 {top_keywords}
 
+<<<<<<< HEAD
 Rewrite each bullet point to subtly emphasize the above skills and naturally \
 incorporate the JD keywords. Keep all facts 100% accurate. \
 Do NOT invent metrics, projects, or experiences that are not in the originals.
+=======
+Rewrite each bullet point so that your output embodies a fully ATS-compliant style:
+- Use clear action verbs (e.g., Developed, Designed, Spearheaded).
+- Quantify achievements where possible without inventing new facts.
+- Seamlessly weave in the provided skills and keywords so it perfectly matches the job description.
+- Keep sentences structure simple and linear for ATS parsers.
+>>>>>>> a135004 (Updated..)
 
 Return ONLY a JSON array of rewritten bullet strings, exactly the same count \
 as the input bullets. No markdown, no preamble, no explanation.
@@ -48,6 +64,18 @@ async def run_tailoring_agent(
         print("[Tailor] No bullets found in resume. Returning base resume.")
         return settings.base_resume_docx
 
+<<<<<<< HEAD
+=======
+    # Inject Extra Skills from Dashboard
+    import os, json
+    skills_path = os.path.join("memory", "skills.json")
+    if os.path.exists(skills_path):
+        with open(skills_path, "r", encoding="utf-8") as f:
+            extra_skills = json.load(f).get("skills", "")
+            if extra_skills.strip():
+                resume_bullets.append(f"Additional capabilities and technical abilities: {extra_skills}")
+
+>>>>>>> a135004 (Updated..)
     # Extract top 5 keywords from JD
     top_keywords = _extract_top_keywords(job.jd_text, scorer_output.matched_skills)
 

@@ -4,6 +4,14 @@ linkedin_flow.py
 LinkedIn login + Easy Apply handler.
 Uses PopupHandler to continuously sweep for popups/overlays during the
 entire apply flow, not just at the start.
+<<<<<<< HEAD
+=======
+
+Fixes applied:
+  - When no Easy Apply button is found, detect the external Apply button,
+    capture the new popup tab it opens, and run the full external ATS flow
+    on that tab instead of silently skipping the job.
+>>>>>>> a135004 (Updated..)
 """
 from __future__ import annotations
 
@@ -36,6 +44,7 @@ async def linkedin_login(context: BrowserContext) -> Page:
     await random_delay(1.5, 3.0)
     await handler.dismiss_all()
 
+<<<<<<< HEAD
     await human_type(page, "#username", settings.linkedin_email)
     await random_delay(0.5, 1.2)
     await human_type(page, "#password", settings.linkedin_password)
@@ -46,6 +55,55 @@ async def linkedin_login(context: BrowserContext) -> Page:
     await random_delay(2.5, 4.0)
 
     # Dismiss post-login popups: notification permission nag, messaging overlays, etc.
+=======
+    url = page.url.lower()
+    if "feed" not in url and "/in/" not in url and not await page.query_selector("#global-nav"):
+        try:
+            await human_type(page, "#username, #session_key, input[name='session_key']", settings.linkedin_email)
+            await random_delay(0.5, 1.2)
+            await human_type(page, "#password, #session_password, input[name='session_password']", settings.linkedin_password)
+            await random_delay(0.5, 1.2)
+            await human_click(page, "button[type='submit']")
+        except Exception as e:
+            print(f"[Stealth] Warning during login injection: {e}")
+    else:
+        print("[Stealth] Already authenticated via cached session cookies.")
+
+    print("[Stealth] Verifying LinkedIn login success...")
+    timer = 0
+    while timer < 300:  # 5 minutes max
+        try:
+            url = page.url.lower()
+            if "feed" in url or "/in/" in url or await page.query_selector("#global-nav, .global-nav"):
+                print("[Stealth] Successfully authenticated. Resuming flow...")
+                break
+
+            if "checkpoint" in url or "challenge" in url or await page.query_selector(
+                "input[name='pin'], #captcha-challenge"
+            ):
+                if timer % 10 == 0:
+                    print("\n🚨 [SECURITY VERIFICATION DETECTED] 🚨")
+                    print("Please solve the captcha or enter the OTP in the browser. Waiting...")
+            elif "login" in url or url in (
+                "https://www.linkedin.com/", "https://linkedin.com/"
+            ):
+                if timer % 15 == 0:
+                    print(f"\n[Stealth] Waiting for login to complete... (URL: {url})")
+                    print("If it's stuck or failed, please manually resolve the login.")
+
+            await asyncio.sleep(5)
+            timer += 5
+        except Exception:
+            await asyncio.sleep(5)
+            timer += 5
+
+    try:
+        await page.wait_for_load_state("networkidle", timeout=5000)
+    except Exception:
+        pass
+    await random_delay(2.5, 4.0)
+
+>>>>>>> a135004 (Updated..)
     await handler.dismiss_and_escape()
     await random_delay(1.0, 2.0)
     await handler.dismiss_all()
@@ -63,6 +121,14 @@ async def apply_linkedin_easy_apply(
 ) -> bool:
     """
     Full LinkedIn Easy Apply flow with continuous popup suppression.
+<<<<<<< HEAD
+=======
+
+    If the job has no Easy Apply button (external apply), this function
+    automatically detects the external Apply button, captures the new
+    popup tab it opens, and runs the external ATS flow on that tab.
+
+>>>>>>> a135004 (Updated..)
     llm_answer_fn: async callable(question: str, resume_text: str) -> str
     Returns True on success, False on failure.
     """
@@ -77,9 +143,23 @@ async def apply_linkedin_easy_apply(
 
         easy_apply_btn = await _find_easy_apply_button(page)
         if easy_apply_btn is None:
+<<<<<<< HEAD
             print(f"[LinkedIn] No Easy Apply button at {apply_url}")
             await handler.stop_auto_dismiss()
             return False
+=======
+            # ── No Easy Apply: fall back to external apply via popup tab ──
+            print(f"[LinkedIn] No Easy Apply button at {apply_url} — trying external apply...")
+            result = await _handle_external_apply(
+                page=page,
+                tailored_resume_path=tailored_resume_path,
+                resume_text=resume_text,
+                llm_answer_fn=llm_answer_fn,
+                handler=handler,
+            )
+            await handler.stop_auto_dismiss()
+            return result
+>>>>>>> a135004 (Updated..)
 
         await easy_apply_btn.click()
         await random_delay(2.0, 3.5)
@@ -132,6 +212,112 @@ async def apply_linkedin_easy_apply(
         return False
 
 
+<<<<<<< HEAD
+=======
+# ── External apply (non-Easy-Apply LinkedIn jobs) ─────────────────────────────
+
+async def _handle_external_apply(
+    page: Page,
+    tailored_resume_path: str,
+    resume_text: str,
+    llm_answer_fn,
+    handler: PopupHandler,
+) -> bool:
+    """
+    When a LinkedIn job listing has a regular 'Apply' button (not Easy Apply),
+    click it, capture the new browser tab it opens, and run the external ATS
+    flow on that tab.
+
+    Returns True on success, False on failure.
+    """
+    # Lazy import to avoid circular dependency (external_flow does not import
+    # linkedin_flow, so this direction is safe)
+    from browser.external_flow import apply_external_link  # noqa: PLC0415
+
+    # Selectors for the non-Easy-Apply "Apply" button on LinkedIn job pages
+    external_btn_selectors = [
+        "button.jobs-apply-button",
+        ".jobs-apply-button--top-card",
+        "button[aria-label*='Apply']",
+        "a[aria-label*='Apply']",
+        "button:has-text('Apply')",
+    ]
+
+    apply_btn = None
+    for sel in external_btn_selectors:
+        try:
+            btn = await page.query_selector(sel)
+            if btn and await btn.is_visible():
+                btn_text = (await btn.inner_text()).strip().lower()
+                if "easy apply" not in btn_text:
+                    apply_btn = btn
+                    break
+        except Exception:
+            continue
+
+    if apply_btn is None:
+        print("[LinkedIn] No external Apply button found — skipping job.")
+        return False
+
+    print("[LinkedIn] Clicking external Apply button — waiting for new tab...")
+
+    try:
+        # LinkedIn external apply buttons open a new browser tab/popup.
+        # Use context.expect_page() to capture it before it disappears.
+        async with page.context.expect_page(timeout=15_000) as new_page_info:
+            await apply_btn.click()
+
+        new_page = await new_page_info.value
+        try:
+            await new_page.wait_for_load_state("domcontentloaded", timeout=15_000)
+        except Exception:
+            pass  # Some ATSs are slow; proceed anyway
+
+        ext_url = new_page.url
+        print(f"[LinkedIn] External ATS URL: {ext_url}")
+
+        success = await apply_external_link(
+            page=new_page,
+            apply_url=ext_url,
+            tailored_resume_path=tailored_resume_path,
+            resume_text=resume_text,
+            llm_answer_fn=llm_answer_fn,
+        )
+
+        try:
+            await new_page.close()
+        except Exception:
+            pass
+
+        return success
+
+    except Exception as exc:
+        print(f"[LinkedIn] External apply via new tab failed: {exc}")
+
+        # ── Fallback: some ATSs redirect in the same tab instead of a popup ──
+        try:
+            pre_click_url = page.url
+            await apply_btn.click()
+            await random_delay(2.0, 3.5)
+            post_click_url = page.url
+
+            if post_click_url != pre_click_url and "linkedin.com" not in post_click_url:
+                print(f"[LinkedIn] Same-tab redirect to external ATS: {post_click_url}")
+                success = await apply_external_link(
+                    page=page,
+                    apply_url=post_click_url,
+                    tailored_resume_path=tailored_resume_path,
+                    resume_text=resume_text,
+                    llm_answer_fn=llm_answer_fn,
+                )
+                return success
+        except Exception as inner_exc:
+            print(f"[LinkedIn] Same-tab fallback also failed: {inner_exc}")
+
+        return False
+
+
+>>>>>>> a135004 (Updated..)
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 async def _find_easy_apply_button(page: Page):
@@ -146,7 +332,13 @@ async def _find_easy_apply_button(page: Page):
         try:
             btn = await page.query_selector(sel)
             if btn and await btn.is_visible():
+<<<<<<< HEAD
                 return btn
+=======
+                btn_text = (await btn.inner_text()).strip().lower()
+                if "easy apply" in btn_text:
+                    return btn
+>>>>>>> a135004 (Updated..)
         except Exception:
             continue
     return None

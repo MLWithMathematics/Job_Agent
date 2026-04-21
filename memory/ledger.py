@@ -26,6 +26,10 @@ def init_db() -> None:
             company           TEXT,
             platform          TEXT,
             apply_url         TEXT UNIQUE,
+<<<<<<< HEAD
+=======
+            apply_type        TEXT DEFAULT 'easy_apply',
+>>>>>>> a135004 (Updated..)
             match_score       INTEGER,
             status            TEXT DEFAULT 'pending',
             resume_path       TEXT,
@@ -56,12 +60,30 @@ def init_db() -> None:
     conn.commit()
     conn.close()
 
+<<<<<<< HEAD
+=======
+    # ── Migration: add apply_type column to existing databases ────────────
+    conn = _get_conn()
+    try:
+        conn.execute(
+            "ALTER TABLE applications ADD COLUMN apply_type TEXT DEFAULT 'easy_apply'"
+        )
+        conn.commit()
+    except Exception:
+        pass  # column already exists
+    conn.close()
+
+>>>>>>> a135004 (Updated..)
 
 def upsert_application(
     job_title: str,
     company: str,
     platform: str,
     apply_url: str,
+<<<<<<< HEAD
+=======
+    apply_type: str = "easy_apply",
+>>>>>>> a135004 (Updated..)
     match_score: int = 0,
     status: str = "pending",
     resume_path: str = "",
@@ -76,7 +98,11 @@ def upsert_application(
     if row:
         cur.execute(
             """UPDATE applications
+<<<<<<< HEAD
                SET job_title=?, company=?, platform=?, match_score=?,
+=======
+               SET job_title=?, company=?, platform=?, apply_type=?, match_score=?,
+>>>>>>> a135004 (Updated..)
                    status=?, resume_path=?, outreach_sent=?, notes=?,
                    applied_at=CURRENT_TIMESTAMP
                WHERE apply_url=?""",
@@ -84,6 +110,10 @@ def upsert_application(
                 job_title,
                 company,
                 platform,
+<<<<<<< HEAD
+=======
+                apply_type,
+>>>>>>> a135004 (Updated..)
                 match_score,
                 status,
                 resume_path,
@@ -96,14 +126,24 @@ def upsert_application(
     else:
         cur.execute(
             """INSERT INTO applications
+<<<<<<< HEAD
                (job_title, company, platform, apply_url, match_score,
                 status, resume_path, outreach_sent, notes)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+=======
+               (job_title, company, platform, apply_url, apply_type, match_score,
+                status, resume_path, outreach_sent, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+>>>>>>> a135004 (Updated..)
             (
                 job_title,
                 company,
                 platform,
                 apply_url,
+<<<<<<< HEAD
+=======
+                apply_type,
+>>>>>>> a135004 (Updated..)
                 match_score,
                 status,
                 resume_path,

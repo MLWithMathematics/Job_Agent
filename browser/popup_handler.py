@@ -64,10 +64,20 @@ LINKEDIN_POPUP_SELECTORS = [
     ".authentication-outlet button[aria-label='Dismiss']",
     ".join-modal__dismiss",
     "button.artdeco-modal__dismiss",
+<<<<<<< HEAD
     # Message / InMail prompts
     ".msg-overlay-bubble-header__control--close-btn",
     ".msg-overlay-list-bubble--is-minimized button",
     # "Follow company" / "Add connections" cards
+=======
+    # ── Message overlays ──────────────────────────────────────────────────────
+    # ONLY close OPEN (expanded) message bubbles — never click minimised ones
+    # (clicking a minimised bubble opens it, which is the reported bug)
+    ".msg-overlay-bubble-header__control--close-btn",          # X on open chat
+    "button[aria-label='Close your conversation']",
+    "button[aria-label='Dismiss messaging overlay']",
+    # ── "Follow company" / ad banners ────────────────────────────────────────
+>>>>>>> a135004 (Updated..)
     ".ad-banner-container button[aria-label='Dismiss']",
     # Premium upsell
     ".premium-custom-cta-dismiss",
@@ -89,6 +99,15 @@ LINKEDIN_POPUP_SELECTORS = [
     "button.artdeco-button--circle.artdeco-modal__dismiss",
 ]
 
+<<<<<<< HEAD
+=======
+# Selectors that must NEVER be clicked (would open something instead of closing)
+LINKEDIN_NEVER_CLICK = [
+    ".msg-overlay-list-bubble--is-minimized",   # minimised chat — clicking opens it
+    ".msg-overlay-list-bubble-item",             # individual chat tab in tray
+]
+
+>>>>>>> a135004 (Updated..)
 # Naukri-specific selectors
 NAUKRI_POPUP_SELECTORS = [
     # Login nudge
@@ -166,6 +185,10 @@ class PopupHandler:
         Returns the number of popups successfully dismissed.
         """
         count = 0
+<<<<<<< HEAD
+=======
+        count += await self._close_linkedin_messages()        # handle chats first
+>>>>>>> a135004 (Updated..)
         count += await self._dismiss_by_selectors(LINKEDIN_POPUP_SELECTORS)
         count += await self._dismiss_by_selectors(NAUKRI_POPUP_SELECTORS)
         count += await self._dismiss_by_selectors(GENERIC_CLOSE_SELECTORS)
@@ -213,6 +236,48 @@ class PopupHandler:
 
         self.page.on("dialog", handle_dialog)
 
+<<<<<<< HEAD
+=======
+    async def _close_linkedin_messages(self) -> int:
+        """
+        Close any EXPANDED LinkedIn message overlay bubbles without opening
+        minimised ones.  The minimised tray items (.msg-overlay-list-bubble--is-minimized)
+        are intentionally left alone — clicking them would open a new chat window,
+        which is exactly the bug this fixes.
+        """
+        closed = 0
+        try:
+            # Only target expanded (non-minimised) message windows
+            open_chats = await self.page.query_selector_all(
+                ".msg-overlay-bubble-header"
+            )
+            for chat in open_chats:
+                try:
+                    # Confirm this chat is actually expanded (has a body visible)
+                    parent = await chat.evaluate_handle(
+                        "el => el.closest('.msg-overlay-list-bubble')"
+                    )
+                    is_minimised = await parent.evaluate(
+                        "el => el && el.classList.contains('msg-overlay-list-bubble--is-minimized')"
+                    )
+                    if is_minimised:
+                        continue  # leave minimised chats alone
+
+                    close_btn = await chat.query_selector(
+                        ".msg-overlay-bubble-header__control--close-btn, "
+                        "button[aria-label='Close your conversation']"
+                    )
+                    if close_btn and await close_btn.is_visible():
+                        await close_btn.click(timeout=1500)
+                        await asyncio.sleep(random.uniform(0.3, 0.6))
+                        closed += 1
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return closed
+
+>>>>>>> a135004 (Updated..)
     async def _dismiss_by_selectors(self, selectors: list[str]) -> int:
         """Click all visible, enabled elements matching any selector in the list."""
         dismissed = 0

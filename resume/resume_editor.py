@@ -214,3 +214,120 @@ def extract_full_text_from_docx(path: str) -> str:
         return ""
     doc = Document(path)
     return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+<<<<<<< HEAD
+=======
+
+
+# ── PDF support ───────────────────────────────────────────────────────────────
+
+def extract_full_text_from_pdf(path: str) -> str:
+    """
+    Extract all text from a PDF resume.
+    Tries pdfminer.six first (best layout preservation),
+    falls back to pypdf if pdfminer is not installed.
+    """
+    if not os.path.exists(path):
+        return ""
+
+    # Strategy 1: pdfminer.six
+    try:
+        from pdfminer.high_level import extract_text as pdfminer_extract
+        text = pdfminer_extract(path)
+        if text and text.strip():
+            return text.strip()
+    except ImportError:
+        pass
+    except Exception as exc:
+        print(f"[ResumeEditor] pdfminer error: {exc}")
+
+    # Strategy 2: pypdf
+    try:
+        import pypdf
+        reader = pypdf.PdfReader(path)
+        pages = [page.extract_text() or "" for page in reader.pages]
+        text = "\n".join(pages).strip()
+        if text:
+            return text
+    except ImportError:
+        pass
+    except Exception as exc:
+        print(f"[ResumeEditor] pypdf error: {exc}")
+
+    print("[ResumeEditor] WARNING: Could not extract PDF text. Install pdfminer.six: pip install pdfminer.six")
+    return ""
+
+
+def extract_bullets_from_pdf(path: str) -> List[str]:
+    """
+    Extract bullet-like lines from a PDF resume.
+    Heuristic: lines starting with bullet chars or that look like achievement
+    sentences (start with a capital verb / number, end with a period or metric).
+    """
+    full_text = extract_full_text_from_pdf(path)
+    if not full_text:
+        return []
+
+    BULLET_CHARS = ("•", "●", "◦", "-", "–", "▪", "▸", "→", "*")
+    VERB_PATTERN = re.compile(
+        r"^(Developed|Built|Designed|Implemented|Led|Created|Improved|Reduced|"
+        r"Achieved|Deployed|Trained|Optimized|Automated|Researched|Analysed|"
+        r"Analyzed|Managed|Delivered|Increased|Decreased|Collaborated|Published|"
+        r"Fine.tuned|Engineered|Contributed|Integrated|Migrated|Established)\b",
+        re.IGNORECASE,
+    )
+
+    bullets: List[str] = []
+    for line in full_text.splitlines():
+        line = line.strip()
+        if not line or len(line) < 15:
+            continue
+
+        # Remove leading bullet characters
+        cleaned = line.lstrip("".join(BULLET_CHARS) + " \t")
+
+        if line[0] in BULLET_CHARS:
+            if len(cleaned) > 10:
+                bullets.append(cleaned)
+        elif VERB_PATTERN.match(cleaned):
+            bullets.append(cleaned)
+
+    return bullets
+
+
+def detect_resume_format(path: str) -> str:
+    """Return 'docx', 'pdf', or 'tex' based on file extension."""
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".pdf":
+        return "pdf"
+    if ext in (".tex",):
+        return "latex"
+    return "docx"
+
+
+def load_resume(path: str):
+    """
+    Universal resume loader.
+    Returns (full_text: str, bullets: List[str]) for any supported format.
+    """
+    fmt = detect_resume_format(path)
+    if fmt == "pdf":
+        return (
+            extract_full_text_from_pdf(path),
+            extract_bullets_from_pdf(path),
+        )
+    if fmt == "latex":
+        text = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+        # Strip LaTeX commands for plain text
+        text = re.sub(r"\\[a-zA-Z]+\{([^}]*)\}", r"\1", text)
+        text = re.sub(r"\\[a-zA-Z]+", " ", text)
+        bullets = [
+            l.strip() for l in text.splitlines()
+            if l.strip().startswith(r"\item") or len(l.strip()) > 20
+        ]
+        return text, bullets
+    # Default: docx
+    return (
+        extract_full_text_from_docx(path),
+        extract_bullets_from_docx(path),
+    )
+>>>>>>> a135004 (Updated..)

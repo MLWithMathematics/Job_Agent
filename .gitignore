@@ -5,15 +5,26 @@ dist/
 build/
 __pycache__/
 .env
-.env.example
-
+graphify-out
 # MemPalace per-project files (issue #185)
 mempalace.yaml
 entities.json
-mempalace
+mempalace/
 knowledge_graph.sqlite3
 knowledge_graph.sqlite3-shm
 knowledge_graph.sqlite3-wal
 graphify-out\cache
 V3 readme.txt
-requirements.txt
+resume/tailored
+resume/base_resume.docx
+resume/base_resume.pdf
+CLAUDE.md
+R.md
+.graphifyignore
+naukri_login_html.txt
+.agent
+.CLAUDE
+.code-review-graphignore
+scratch
+ledger.db
+form_memory.json

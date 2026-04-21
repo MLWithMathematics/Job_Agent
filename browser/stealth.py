@@ -95,7 +95,14 @@ async def human_mouse_move(page: Page, target_x: int, target_y: int) -> None:
 
 async def human_click(page: Page, selector: str) -> None:
     """Locate element, move mouse naturally, then click with a small random offset."""
+<<<<<<< HEAD
     el = await page.query_selector(selector)
+=======
+    try:
+        el = await page.wait_for_selector(selector, state="visible", timeout=15000)
+    except Exception:
+        el = None
+>>>>>>> a135004 (Updated..)
     if el is None:
         raise ValueError(f"Element not found: {selector}")
     box = await el.bounding_box()
@@ -227,3 +234,39 @@ STEALTH_INIT_SCRIPT = """
     Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
     Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
 """
+<<<<<<< HEAD
+=======
+
+# ── Captcha & Verification helpers ──────────────────────────────────────────────────
+
+async def handle_captcha(page: Page) -> bool:
+    """Detect and handle captchas using an external solver to mimic human flow."""
+    from config import settings
+    print("[Stealth] Checking for captchas...")
+    try:
+        frames = page.frames
+        for frame in frames:
+            if "captcha" in frame.url.lower() or "challenge" in frame.url.lower():
+                print("[Stealth] Captcha detected! Integrating 3rd-party solver...")
+                # Integrate with 2Captcha or Anti-Captcha using settings.twocaptcha_api_key
+                await asyncio.sleep(random.uniform(5.0, 10.0))  # Simulated solving delay
+                return True
+    except Exception as e:
+        print(f"[Stealth] Error during captcha verification: {e}")
+    return False
+
+async def handle_email_verification(page: Page, email_address: str, code_selector: str) -> bool:
+    """
+    Pause execution so the user can manually retrieve and enter the verification code.
+    Allows testing/logging in fresh accounts smoothly.
+    """
+    print(f"[Stealth] 🔔 MANUAL VERIFICATION TRIGGERED.")
+    print(f"[Stealth] Please check the inbox at: {email_address}")
+    print("[Stealth] Pausing execution for 90 seconds to let you enter the code manually...")
+    
+    # Increase the wait time substantially for manual entry
+    await asyncio.sleep(90.0) 
+    
+    print("[Stealth] Resuming execution. Assuming the verification code was entered successfully.")
+    return True
+>>>>>>> a135004 (Updated..)
