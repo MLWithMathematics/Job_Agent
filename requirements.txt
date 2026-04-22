@@ -1,35 +1,32 @@
-# Core orchestration
-langgraph==0.2.28
-langchain-core==0.3.15
+# Core Architecture
+langgraph
+pydantic
+pydantic-settings
+python-dotenv
+typing_extensions
 
-# LLM
-google-generativeai==0.8.3
-ollama==0.3.3
+# LLM Clients
+google-generativeai
+groq
+ollama
 
-# Browser automation
-playwright==1.47.0
+# Browser & Scraping
+playwright
+beautifulsoup4
+lxml
 
-# HTML parsing
-beautifulsoup4==4.12.3
-lxml==5.3.0
+# Resume & PDF Support
+python-docx
+pdfminer.six
+pypdf
 
-# Resume editing
-python-docx==1.1.2
-
-# Config
-pydantic==2.9.2
-pydantic-settings==2.5.2
-python-dotenv==1.0.1
-
-# Scheduler
-APScheduler==3.10.4
-
-# Dashboard
-streamlit==1.39.0
-pandas==2.2.3
-plotly==5.24.1
-altair==5.4.1
+# Dashboard & Data
+streamlit
+pandas
+plotly
 
 # Utilities
-# difflib2==0.2.0
-requests==2.32.3
+rich
+tenacity
+tqdm
+python-dateutil

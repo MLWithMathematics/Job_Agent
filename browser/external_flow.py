@@ -9,15 +9,19 @@ platform's native apply flow.
 
 Strategy:
   1. Navigate to the external URL with full stealth + PopupHandler.
-  2. Upload the tailored resume to any file input found.
-  3. Pre-fill personal fields from settings (phone, location, CTC, etc.)
+  2. Verify the page is actually a job application form (not a listing /
+     careers home / generic company page) before touching any inputs.
+  3. Upload the tailored resume to any file input found.
+  4. Pre-fill personal fields from settings (phone, location, CTC, etc.)
      before touching the LLM — avoids unnecessary API calls and halting
      stdin prompts for fields we already know.
-  4. Discover and fill all remaining visible form fields via:
+  5. Discover and fill all remaining visible form fields via:
        form_memory cache → manual stdin (sensitive) → LLM fallback
-  5. Handle text, textarea, select, radio, checkbox, date, contenteditable
+     Inputs inside <footer>, <nav>, <header> or tagged as search /
+     newsletter are skipped entirely.
+  6. Handle text, textarea, select, radio, checkbox, date, contenteditable
      divs, and custom combobox / react-select style dropdowns.
-  6. Click the primary submit button and confirm with a success-page check.
+  7. Click the primary submit button and confirm with a success-page check.
 """
 from __future__ import annotations
 
@@ -58,16 +62,33 @@ SUBMIT_BUTTON_TEXTS = [
 ]
 
 # Fields to prompt the user for via stdin rather than the LLM.
-# These are sensitive / highly personal values.
 MANUAL_FIELDS = [
     "date of birth", "nationality", "passport", "ssn", "social security",
     "bank account", "pan number", "aadhaar",
 ]
 
+# Labels / placeholders that indicate a non-application input (site chrome)
+_JUNK_LABEL_SIGNALS = [
+    "search", "subscribe", "newsletter", "email updates", "notify me",
+    "sign up", "mailing list", "alerts",
+]
+
+# CSS ancestor selectors that mark inputs as site-chrome rather than form fields
+_JUNK_ANCESTORS = ["footer", "nav", "header", "[role='navigation']", "[role='banner']"]
+
+# Known ATS URL substrings — pages whose URL matches are almost certainly real
+# application forms even if they have few form signals.
+_KNOWN_ATS_HOSTS = [
+    "greenhouse.io", "lever.co", "workday.com", "myworkdayjobs.com",
+    "icims.com", "taleo.net", "smartrecruiters.com", "jobvite.com",
+    "ashbyhq.com", "bamboohr.com", "recruitee.com", "workable.com",
+    "rippling.com", "jazz.co", "breezy.hr", "pinpointhq.com",
+    "teamtailor.com", "dover.com", "apply.com",
+]
+
+
 # ── Settings-backed personal field map ───────────────────────────────────────
-# Keys are lowercase substrings that appear in field labels.
-# Values are pulled from the .env-backed Settings object.
-# Only non-empty settings values are used.
+
 def _settings_map() -> dict:
     return {
         "phone":                  settings.phone,
@@ -84,10 +105,126 @@ def _settings_map() -> dict:
         "total experience":       settings.total_experience_years,
         "years of experience":    settings.total_experience_years,
         "experience":             settings.total_experience_years,
-        "zip":                    "",   # extend in .env if needed
+        "zip":                    "",
         "postal":                 "",
         "pincode":                "",
     }
+
+
+# ── Application-page guard ────────────────────────────────────────────────────
+
+async def _is_application_page(page: Page) -> bool:
+    """
+    Return True only if the current page looks like a real job application form.
+
+    Checks (any one is sufficient):
+      1. URL matches a known ATS hostname.
+      2. A file-upload input exists (resume upload → almost certainly an ATS).
+      3. At least 2 of the 4 personal-info signals are present:
+           name field, email field, phone/tel field, cover-letter textarea.
+      4. Page contains an explicit application-form heading keyword.
+
+    If none match → it's a careers listing page / company homepage / generic
+    page and we should bail rather than filling random inputs.
+    """
+    url = page.url.lower()
+
+    # 1. Known ATS host
+    for host in _KNOWN_ATS_HOSTS:
+        if host in url:
+            return True
+
+    try:
+        # 2. File upload input (resume field)
+        file_input = await page.query_selector("input[type='file']")
+        if file_input:
+            return True
+
+        # 3. Personal-info signal count
+        signals = 0
+        checks = [
+            # name field
+            "input[autocomplete='name'], input[name*='name'], "
+            "input[placeholder*='name' i], input[aria-label*='name' i]",
+            # email field
+            "input[type='email'], input[autocomplete='email'], "
+            "input[name*='email'], input[placeholder*='email' i]",
+            # phone / tel field
+            "input[type='tel'], input[autocomplete='tel'], "
+            "input[name*='phone'], input[placeholder*='phone' i]",
+            # cover letter / motivation textarea
+            "textarea[name*='cover'], textarea[placeholder*='cover' i], "
+            "textarea[aria-label*='cover' i], textarea[name*='letter' i]",
+        ]
+        for sel in checks:
+            try:
+                el = await page.query_selector(sel)
+                if el and await el.is_visible():
+                    signals += 1
+            except Exception:
+                pass
+        if signals >= 2:
+            return True
+
+        # 4. Page heading keyword
+        heading_sel = "h1, h2, [class*='title'], [class*='heading']"
+        headings = await page.query_selector_all(heading_sel)
+        for h in headings[:8]:
+            try:
+                text = (await h.inner_text()).lower()
+                if any(kw in text for kw in ("apply", "application", "job application", "submit your")):
+                    return True
+            except Exception:
+                pass
+
+    except Exception:
+        pass
+
+    return False
+
+
+# ── Junk-input guard ──────────────────────────────────────────────────────────
+
+async def _is_junk_input(page: Page, element) -> bool:
+    """
+    Return True if the input belongs to site chrome (footer, nav, header)
+    or is a search / newsletter subscription box rather than an application
+    form field.
+    """
+    try:
+        # Check ancestor elements for structural chrome tags
+        for ancestor_sel in _JUNK_ANCESTORS:
+            is_inside = await page.evaluate(
+                """([el, sel]) => {
+                    let node = el;
+                    while (node && node !== document.body) {
+                        if (node.matches && node.matches(sel)) return true;
+                        node = node.parentElement;
+                    }
+                    return false;
+                }""",
+                [element, ancestor_sel],
+            )
+            if is_inside:
+                return True
+
+        # Check label / placeholder / name for junk signals
+        label = (await _get_field_label(page, element)).lower()
+        placeholder = ((await element.get_attribute("placeholder")) or "").lower()
+        input_type = ((await element.get_attribute("type")) or "").lower()
+        input_name = ((await element.get_attribute("name")) or "").lower()
+
+        if input_type == "search":
+            return True
+
+        combined = f"{label} {placeholder} {input_name}"
+        if any(sig in combined for sig in _JUNK_LABEL_SIGNALS):
+            return True
+
+    except Exception:
+        pass
+
+    return False
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
@@ -122,9 +259,18 @@ async def apply_external_link(
         await random_delay(1.0, 2.0)
         await handler.dismiss_all()
 
+        # ── Guard: bail if this doesn't look like an application form ──
+        if not await _is_application_page(page):
+            print(
+                f"[External] Page does not look like a job application form — skipping.\n"
+                f"           URL: {page.url}"
+            )
+            await handler.stop_auto_dismiss()
+            return False
+
         # Upload resume first — many ATSs pre-parse it to fill other fields
         await _handle_resume_upload(page, tailored_resume_path)
-        await random_delay(1.5, 2.5)   # let ATS parse-and-fill if it does so
+        await random_delay(1.5, 2.5)
 
         # Multi-step form loop (up to 12 pages / steps)
         max_steps = 12
@@ -134,7 +280,6 @@ async def apply_external_link(
             await _fill_form_fields(page, resume_text, llm_answer_fn)
             await handler.dismiss_all()
 
-            # Check if we landed on a success page already
             if _is_success_page(await page.content()):
                 print("[External] Success page detected — application submitted!")
                 await handler.stop_auto_dismiss()
@@ -220,6 +365,8 @@ async def _fill_personal_fields(page: Page) -> None:
     """
     Pre-fill common personal-info fields directly from settings values.
     Runs before the LLM pass to avoid wasting tokens on data we already have.
+    Skips inputs inside site-chrome elements (footer, nav, header) and
+    search / newsletter inputs.
     """
     smap = _settings_map()
     text_inputs = await page.query_selector_all(
@@ -229,6 +376,9 @@ async def _fill_personal_fields(page: Page) -> None:
     for inp in text_inputs:
         try:
             if not await inp.is_visible():
+                continue
+            # Skip site-chrome / junk inputs
+            if await _is_junk_input(page, inp):
                 continue
             existing = await inp.input_value()
             if existing.strip():
@@ -253,6 +403,10 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> None
     Covers: text/number/email/tel/url inputs, textareas, select dropdowns,
     radio fieldsets, individual checkboxes, date pickers, contenteditable
     divs, and custom combobox / react-select components.
+
+    Inputs inside footer/nav/header or flagged as search/newsletter are
+    skipped. LLM answers are capped to the field's maxlength attribute (or
+    500 chars if absent) to prevent timeout errors from typing huge paragraphs.
     """
     # 1. Personal fields from settings first (no API call needed)
     await _fill_personal_fields(page)
@@ -266,20 +420,33 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> None
         try:
             if not await inp.is_visible():
                 continue
+            # Skip site-chrome / junk inputs
+            if await _is_junk_input(page, inp):
+                continue
             label = await _get_field_label(page, inp)
             if not label:
                 continue
             existing = await inp.input_value()
             if existing.strip():
                 continue
+
+            # Determine the field's maxlength so we can cap the answer
+            try:
+                maxlen_attr = await inp.get_attribute("maxlength")
+                max_chars = int(maxlen_attr) if maxlen_attr and maxlen_attr.isdigit() else 500
+            except Exception:
+                max_chars = 500
+
             answer = await _resolve_answer(label, resume_text, llm_answer_fn)
             if answer:
+                # Hard-cap to avoid ElementHandle.type() timeout
+                answer = answer[:max_chars]
                 await human_fill(inp, answer)
                 await random_delay(0.3, 0.8)
         except Exception as exc:
             print(f"[External] Text field warning: {exc}")
 
-    # 3. Date inputs  (type="date" → value format YYYY-MM-DD)
+    # 3. Date inputs
     date_inputs = await page.query_selector_all("input[type='date']")
     for inp in date_inputs:
         try:
@@ -310,7 +477,6 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> None
                 await sel_el.select_option(label=saved)
                 await random_delay(0.3, 0.7)
                 continue
-            # Build option list and ask LLM
             options = await sel_el.query_selector_all("option")
             option_texts = []
             for opt in options:
@@ -369,7 +535,7 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> None
         except Exception:
             pass
 
-    # 7. Standalone checkboxes (outside fieldsets) — e.g. "I agree to terms"
+    # 7. Standalone checkboxes — e.g. "I agree to terms"
     checkboxes = await page.query_selector_all(
         "input[type='checkbox']:not([disabled])"
     )
@@ -381,7 +547,6 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> None
                 continue
             label = await _get_field_label(page, cb)
             label_lower = label.lower()
-            # Auto-check consent / agreement boxes
             if any(
                 kw in label_lower
                 for kw in ("agree", "consent", "terms", "privacy", "authoriz")
@@ -391,7 +556,7 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> None
         except Exception:
             pass
 
-    # 8. Contenteditable divs (used by some React ATSs as rich-text editors)
+    # 8. Contenteditable divs (rich-text editors in some React ATSs)
     ce_divs = await page.query_selector_all(
         "[contenteditable='true']:not([aria-hidden='true'])"
     )
@@ -405,8 +570,12 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> None
             label = await _get_field_label(page, div)
             if not label:
                 continue
+            # Skip junk contenteditable (site search bars, etc.)
+            if await _is_junk_input(page, div):
+                continue
             answer = await _resolve_answer(label, resume_text, llm_answer_fn)
             if answer:
+                answer = answer[:1000]  # reasonable cap for rich-text fields
                 await div.click()
                 await random_delay(0.2, 0.4)
                 await div.type(answer, delay=40)
@@ -428,7 +597,8 @@ async def _fill_custom_dropdowns(page: Page, resume_text: str, llm_answer_fn) ->
         try:
             if not await cb.is_visible():
                 continue
-            # Check if already has a value
+            if await _is_junk_input(page, cb):
+                continue
             value_el = await cb.query_selector(
                 "[role='option'][aria-selected='true'], "
                 ".react-select__single-value, [class*='singleValue']"
@@ -438,10 +608,8 @@ async def _fill_custom_dropdowns(page: Page, resume_text: str, llm_answer_fn) ->
             label = await _get_field_label(page, cb)
             if not label:
                 continue
-            # Open the dropdown
             await cb.click()
             await random_delay(0.4, 0.8)
-            # Collect visible options
             options = await page.query_selector_all(
                 "[role='option'], .react-select__option, [class*='Select__option']"
             )
@@ -469,7 +637,6 @@ async def _fill_custom_dropdowns(page: Page, resume_text: str, llm_answer_fn) ->
                         await random_delay(0.3, 0.6)
                         break
                 else:
-                    # No match found — close without selecting
                     await page.keyboard.press("Escape")
             else:
                 await page.keyboard.press("Escape")
@@ -533,7 +700,7 @@ async def _resolve_answer(
       1. Settings map (phone, location, CTC, notice period …)
       2. form_memory cache
       3. stdin prompt for highly sensitive fields (DOB, passport, etc.)
-      4. LLM fallback
+      4. LLM fallback (answer capped to 300 chars)
     """
     # 1. Settings
     label_lower = label.lower()
@@ -550,7 +717,7 @@ async def _resolve_answer(
         print(f"[FormMemory] '{label}' → '{saved}'")
         return saved
 
-    # 3. Manual stdin for fields we never want the LLM to guess
+    # 3. Manual stdin for sensitive fields
     for field in MANUAL_FIELDS:
         if field in label_lower:
             print(f"\n[External][SENSITIVE FIELD] '{label}' — enter your answer:")
@@ -560,12 +727,13 @@ async def _resolve_answer(
                 return answer
             return None
 
-    # 4. LLM
+    # 4. LLM — cap at 300 chars to prevent ElementHandle.type() timeout
     print(f"[External][LLM] '{label}'")
     answer = await llm_answer_fn(label, resume_text)
     if answer:
+        answer = answer.strip()[:300]
         save_answer(label, answer)
-    return answer
+    return answer or None
 
 
 # ── Navigation helpers ────────────────────────────────────────────────────────
@@ -613,7 +781,6 @@ async def _click_submit(page: Page) -> None:
                 return
         except Exception:
             continue
-    # Fallback
     try:
         btn = await page.query_selector("input[type='submit'], button[type='submit']")
         if btn and await btn.is_visible():

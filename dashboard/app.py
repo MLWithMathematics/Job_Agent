@@ -6,10 +6,7 @@ import sys
 # Ensure project root on path when running via streamlit
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-<<<<<<< HEAD
-=======
 import json
->>>>>>> a135004 (Updated..)
 import sqlite3
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
@@ -89,8 +86,6 @@ with st.sidebar:
         st.rerun()
 
     st.divider()
-<<<<<<< HEAD
-=======
     
     st.subheader("🛠️ Skill Manager")
     skills_path = os.path.join("memory", "skills.json")
@@ -108,7 +103,6 @@ with st.sidebar:
         st.success("Skills saved!")
 
     st.divider()
->>>>>>> a135004 (Updated..)
     st.caption(f"DB: `{settings.db_path}`")
     st.caption(f"Threshold: **{settings.match_threshold}** / 100")
 

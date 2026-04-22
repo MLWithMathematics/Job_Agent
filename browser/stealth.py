@@ -95,14 +95,10 @@ async def human_mouse_move(page: Page, target_x: int, target_y: int) -> None:
 
 async def human_click(page: Page, selector: str) -> None:
     """Locate element, move mouse naturally, then click with a small random offset."""
-<<<<<<< HEAD
-    el = await page.query_selector(selector)
-=======
     try:
         el = await page.wait_for_selector(selector, state="visible", timeout=15000)
     except Exception:
         el = None
->>>>>>> a135004 (Updated..)
     if el is None:
         raise ValueError(f"Element not found: {selector}")
     box = await el.bounding_box()
@@ -234,8 +230,6 @@ STEALTH_INIT_SCRIPT = """
     Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
     Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
 """
-<<<<<<< HEAD
-=======
 
 # ── Captcha & Verification helpers ──────────────────────────────────────────────────
 
@@ -269,4 +263,3 @@ async def handle_email_verification(page: Page, email_address: str, code_selecto
     
     print("[Stealth] Resuming execution. Assuming the verification code was entered successfully.")
     return True
->>>>>>> a135004 (Updated..)

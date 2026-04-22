@@ -33,10 +33,7 @@ class ScorerOutput:
     gaps: List[str]
     reasoning: str
     internship_fit: bool        # True if this is a good internship match
-<<<<<<< HEAD
-=======
     plausible_chance: bool      # True if there is a realistic chance of getting the job despite low score
->>>>>>> a135004 (Updated..)
     status: str                 # 'approved' or 'skipped'
 
 
@@ -63,12 +60,8 @@ Return ONLY valid JSON (no markdown, no preamble):
   "matched_skills": [<matched keywords, max 10>],
   "gaps": [<missing requirements, max 5>],
   "reasoning": "<2–3 sentence summary>",
-<<<<<<< HEAD
-  "internship_fit": false
-=======
   "internship_fit": false,
   "plausible_chance": <bool>
->>>>>>> a135004 (Updated..)
 }}
 """
 
@@ -97,12 +90,8 @@ Return ONLY valid JSON (no markdown, no preamble):
   "matched_skills": [<matched keywords/concepts, max 10>],
   "gaps": [<genuinely missing things, max 5>],
   "reasoning": "<2–3 sentence summary focusing on project/coursework fit>",
-<<<<<<< HEAD
-  "internship_fit": true
-=======
   "internship_fit": true,
   "plausible_chance": <bool>
->>>>>>> a135004 (Updated..)
 }}
 """
 
@@ -138,10 +127,6 @@ async def run_scorer_agent(job: JobListing, resume_text: str) -> ScorerOutput:
     Uses the correct prompt and threshold depending on `job.is_internship`.
     """
     if not job.jd_text.strip():
-<<<<<<< HEAD
-        print(f"[Scorer] Empty JD for {job.company}. Skipping.")
-        return _make_skipped("No job description available.")
-=======
         if job.is_internship:
             print(f"[Scorer] Empty JD for {job.company}. Approving regardless because it is an internship.")
             return ScorerOutput(
@@ -156,7 +141,6 @@ async def run_scorer_agent(job: JobListing, resume_text: str) -> ScorerOutput:
         else:
             print(f"[Scorer] Empty JD for {job.company}. Skipping.")
             return _make_skipped("No job description available.")
->>>>>>> a135004 (Updated..)
 
     # Choose prompt
     if job.is_internship:
@@ -186,16 +170,11 @@ async def run_scorer_agent(job: JobListing, resume_text: str) -> ScorerOutput:
             print(f"[Scorer] Fresher boost applied: {old_score} → {output.score}")
             output.reasoning += f" (Fresher profile +{boost} boost applied.)"
 
-<<<<<<< HEAD
-    # Apply threshold
-    output.status = "approved" if output.score >= threshold else "skipped"
-=======
     # Apply threshold or plausible chance
     if job.is_internship and output.score >= 50:
         output.status = "approved" # Apply to every internship matching the field
     else:
         output.status = "approved" if (output.score >= threshold or output.plausible_chance) else "skipped"
->>>>>>> a135004 (Updated..)
 
     print(
         f"[Scorer] [{label}] {job.company} | {job.job_title} → "
@@ -224,10 +203,7 @@ def _parse_response(raw: str) -> ScorerOutput:
             gaps=data.get("gaps", []),
             reasoning=data.get("reasoning", ""),
             internship_fit=bool(data.get("internship_fit", False)),
-<<<<<<< HEAD
-=======
             plausible_chance=bool(data.get("plausible_chance", False)),
->>>>>>> a135004 (Updated..)
             status="pending",
         )
     except (json.JSONDecodeError, ValueError) as exc:
@@ -240,10 +216,7 @@ def _parse_response(raw: str) -> ScorerOutput:
             gaps=[],
             reasoning="Score extracted via fallback (JSON parse failed).",
             internship_fit=False,
-<<<<<<< HEAD
-=======
             plausible_chance=False,
->>>>>>> a135004 (Updated..)
             status="pending",
         )
 
@@ -255,9 +228,6 @@ def _make_skipped(reason: str) -> ScorerOutput:
         gaps=[reason],
         reasoning=reason,
         internship_fit=False,
-<<<<<<< HEAD
-=======
         plausible_chance=False,
->>>>>>> a135004 (Updated..)
         status="skipped",
     )
