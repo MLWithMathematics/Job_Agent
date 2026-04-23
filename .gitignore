@@ -14,8 +14,7 @@ R.md
 .graphifyignore
 naukri_login_html.txt
 .agent
-.CLAUDE
-.code-review-graphignore
+.claude
 scratch
 **/ledger.db
 form_memory.json

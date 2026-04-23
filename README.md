@@ -24,9 +24,11 @@ job_agent/
 │   ├── form_memory.py       # Fuzzy-match form field memory (JSON)
 │   └── ledger.py            # SQLite application log
 ├── browser/
+│   ├── external_flow.py     # Generic external job application form filler
 │   ├── linkedin_flow.py     # LinkedIn Easy Apply handler
 │   ├── naukri_flow.py       # Naukri apply + profile refresh
-│   └── stealth.py           # Human behavior simulation utilities
+│   ├── popup_handler.py     # Multi-strategy popup & modal suppression
+│   └── stealth.py           # Human behavior simulation & CAPTCHA handling
 ├── resume/
 │   ├── base_resume.docx     # ← YOUR MASTER RESUME (Word) — place here
 │   ├── base_resume.tex      # ← YOUR MASTER RESUME (LaTeX) — optional
@@ -38,6 +40,15 @@ job_agent/
 ├── .env.example
 └── README.md
 ```
+
+---
+
+## ✨ New Features in v3
+
+- **External Portals & CAPTCHA Handling:** Introduces `external_flow.py` for automatically detecting and filling complex job applications on non-platform company portals. Built-in human-behavior simulation (`stealth.py`) handles captchas via external solvers or pauses execution for manual verification.
+- **Continuous Popup Suppression:** A robust, background `PopupHandler` constantly dismisses overlays, notification prompts, and modals without interrupting the main automation flows.
+- **Expanded Resume Support:** Native text and list extraction from PDFs using `pdfminer.six` and `pypdf`, complementing the existing docx and LaTeX tailors.
+- **Internship Prioritization:** Configurable logic for scoring internships versus standard jobs, maximizing match relevance (approves automatically on threshold).
 
 ---
 
@@ -150,6 +161,10 @@ RESUME_FORMAT=docx                  # 'docx' or 'latex'
    Set `RESUME_FORMAT=latex` in `.env`.
    Requires `pdflatex` installed and on your PATH.
 
+3. **PDF format (supported for read-only / extraction):**
+   Place your resume as: `resume/base_resume.pdf`
+   > The agent can extract text and bullet points from PDFs using `pdfminer.six` or `pypdf`. Note that dynamic tailoring output may fall back to Word format unless a LaTeX source is also provided.
+
 ---
 
 ## 🚀 Running the Application
@@ -256,7 +271,7 @@ The agent remembers answers to application form fields so you don't get asked th
 | Primary LLM | Gemini 1.5 Pro (google-generativeai) |
 | Fallback LLM | Ollama + mistral:7b |
 | HTML parsing | BeautifulSoup4 |
-| Resume editing | python-docx / pdflatex |
+| Resume extraction & editing | python-docx / pdflatex / pdfminer.six / pypdf |
 | Database | SQLite (built-in) |
 | Dashboard | Streamlit + Plotly |
 | Scheduler | APScheduler |
