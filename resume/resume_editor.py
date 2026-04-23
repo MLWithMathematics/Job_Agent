@@ -214,8 +214,6 @@ def extract_full_text_from_docx(path: str) -> str:
         return ""
     doc = Document(path)
     return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-<<<<<<< HEAD
-=======
 
 
 # ── PDF support ───────────────────────────────────────────────────────────────
@@ -330,4 +328,3 @@ def load_resume(path: str):
         extract_full_text_from_docx(path),
         extract_bullets_from_docx(path),
     )
->>>>>>> a135004 (Updated..)

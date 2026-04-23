@@ -17,5 +17,5 @@ naukri_login_html.txt
 .CLAUDE
 .code-review-graphignore
 scratch
-ledger.db
+**/ledger.db
 form_memory.json
