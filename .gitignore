@@ -2,7 +2,7 @@ node_modules/
 .next/
 dist/
 build/
-__pycache__/
+**/__pycache__/
 .env
 graphify-out
 V3 readme.txt
