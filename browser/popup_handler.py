@@ -271,6 +271,14 @@ class PopupHandler:
                 for el in elements:
                     try:
                         if await el.is_visible() and await el.is_enabled():
+                            # DO NOT dismiss the Easy Apply modal or anything inside it!
+                            # Check if the element is inside .jobs-easy-apply-modal
+                            is_in_easy_apply = await el.evaluate(
+                                "el => el.closest('.jobs-easy-apply-modal') !== null"
+                            )
+                            if is_in_easy_apply:
+                                continue
+
                             await el.click(timeout=1500)
                             await asyncio.sleep(random.uniform(0.3, 0.7))
                             dismissed += 1
@@ -287,6 +295,11 @@ class PopupHandler:
             try:
                 el = await self.page.query_selector(selector)
                 if el and await el.is_visible():
+                    # If the Easy Apply modal is open, clicking the overlay will close it!
+                    easy_apply = await self.page.query_selector(".jobs-easy-apply-modal")
+                    if easy_apply and await easy_apply.is_visible():
+                        continue
+
                     # Click the very edge (top-left corner of viewport) to close
                     await self.page.mouse.click(10, 10)
                     await asyncio.sleep(random.uniform(0.4, 0.8))
