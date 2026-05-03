@@ -28,6 +28,11 @@ from browser.stealth import (
 from browser.popup_handler import PopupHandler, safe_goto
 from browser.linkedin_flow import linkedin_login
 from browser.naukri_flow import naukri_login
+from browser.session_manager import (
+    get_persistent_context,
+    is_linkedin_logged_in,
+    is_naukri_logged_in,
+)
 from config import settings
 
 
@@ -73,67 +78,93 @@ def _detect_internship(title: str, jd_text: str) -> bool:
 async def run_search_agent() -> List[JobListing]:
     """
     Scrape LinkedIn + Naukri for configured keywords (jobs + internships).
+    Uses persistent browser contexts — login only fires when the saved session
+    has expired or does not exist yet.
     Returns deduplicated list capped at max_listings_per_run.
     """
     all_listings: List[JobListing] = []
 
-    async with async_playwright() as pw:
-        browser = await pw.chromium.launch(**get_launch_args())
-        context = await browser.new_context(**get_context_options())
-        await context.add_init_script(STEALTH_INIT_SCRIPT)
+    li_pw = li_context = None
+    nk_pw = nk_context = None
 
-        try:
-            # ── LinkedIn ──────────────────────────────────────────────
-            if settings.linkedin_email and settings.linkedin_password:
-                print("[Search] LinkedIn scrape starting...")
-                li_page = await linkedin_login(context)
-                handler = PopupHandler(li_page)
-                await handler.start_auto_dismiss()
+    try:
+        # ── LinkedIn ──────────────────────────────────────────────────
+        if settings.linkedin_email and settings.linkedin_password:
+            print("[Search] LinkedIn scrape starting...")
+            li_pw, li_context = await get_persistent_context("linkedin")
 
-                # Full-time keywords
-                for kw in settings.keyword_list:
-                    listings = await _scrape_linkedin(li_page, kw, internship=False)
-                    all_listings.extend(listings)
-                    await random_delay(2.5, 5.0)
-                    if len(all_listings) >= settings.max_listings_per_run:
-                        break
-
-                # Internship keywords
-                for kw in settings.internship_keyword_list:
-                    listings = await _scrape_linkedin(li_page, kw, internship=True)
-                    all_listings.extend(listings)
-                    await random_delay(2.5, 5.0)
-
-                await handler.stop_auto_dismiss()
-                await li_page.close()
+            already_in = await is_linkedin_logged_in(li_context)
+            if already_in:
+                print("[Search] LinkedIn session restored from disk — skipping login. [OK]")
+                li_page = await li_context.new_page()
             else:
-                print("[Search] Skipping LinkedIn (no credentials).")
+                print("[Search] LinkedIn session expired — logging in...")
+                li_page = await linkedin_login(li_context)
 
-            # ── Naukri ────────────────────────────────────────────────
-            if settings.naukri_email and settings.naukri_password:
-                print("[Search] Naukri scrape starting...")
-                nk_page = await naukri_login(context)
-                handler = PopupHandler(nk_page)
-                await handler.start_auto_dismiss()
+            handler = PopupHandler(li_page)
+            await handler.start_auto_dismiss()
 
-                for kw in settings.keyword_list:
-                    listings = await _scrape_naukri(nk_page, kw, internship=False)
-                    all_listings.extend(listings)
-                    await random_delay(2.5, 5.0)
+            for kw in settings.keyword_list:
+                listings = await _scrape_linkedin(li_page, kw, internship=False)
+                all_listings.extend(listings)
+                await random_delay(2.5, 5.0)
+                if len(all_listings) >= settings.max_listings_per_run:
+                    break
 
-                for kw in settings.internship_keyword_list:
-                    listings = await _scrape_naukri(nk_page, kw, internship=True)
-                    all_listings.extend(listings)
-                    await random_delay(2.5, 5.0)
+            for kw in settings.internship_keyword_list:
+                listings = await _scrape_linkedin(li_page, kw, internship=True)
+                all_listings.extend(listings)
+                await random_delay(2.5, 5.0)
 
-                await handler.stop_auto_dismiss()
-                await nk_page.close()
+            await handler.stop_auto_dismiss()
+            await li_page.close()
+        else:
+            print("[Search] Skipping LinkedIn (no credentials).")
+
+        # ── Naukri ────────────────────────────────────────────────────
+        if settings.naukri_email and settings.naukri_password:
+            print("[Search] Naukri scrape starting...")
+            nk_pw, nk_context = await get_persistent_context("naukri")
+
+            already_in = await is_naukri_logged_in(nk_context)
+            if already_in:
+                print("[Search] Naukri session restored from disk — skipping login. [OK]")
+                nk_page = await nk_context.new_page()
             else:
-                print("[Search] Skipping Naukri (no credentials).")
+                print("[Search] Naukri session expired — logging in...")
+                nk_page = await naukri_login(nk_context)
 
-        finally:
-            await context.close()
-            await browser.close()
+            handler = PopupHandler(nk_page)
+            await handler.start_auto_dismiss()
+
+            for kw in settings.keyword_list:
+                listings = await _scrape_naukri(nk_page, kw, internship=False)
+                all_listings.extend(listings)
+                await random_delay(2.5, 5.0)
+
+            for kw in settings.internship_keyword_list:
+                listings = await _scrape_naukri(nk_page, kw, internship=True)
+                all_listings.extend(listings)
+                await random_delay(2.5, 5.0)
+
+            await handler.stop_auto_dismiss()
+            await nk_page.close()
+        else:
+            print("[Search] Skipping Naukri (no credentials).")
+
+    finally:
+        # Close persistent contexts — this flushes cookies to disk
+        for ctx, pw in [(li_context, li_pw), (nk_context, nk_pw)]:
+            if ctx is not None:
+                try:
+                    await ctx.close()
+                except Exception:
+                    pass
+            if pw is not None:
+                try:
+                    await pw.stop()
+                except Exception:
+                    pass
 
     # Deduplicate by URL
     seen: set[str] = set()
@@ -150,6 +181,7 @@ async def run_search_agent() -> List[JobListing]:
         f"{len(jobs)} jobs + {len(internships)} internships."
     )
     return unique[: settings.max_listings_per_run * 2]   # give scorer more to work with
+
 
 
 # ── LinkedIn scrapers ─────────────────────────────────────────────────────────
@@ -187,7 +219,7 @@ async def _scrape_linkedin(
 
     print(
         f"[LinkedIn] {'Internship' if internship else 'Job'} "
-        f"'{keyword}' → {len(job_cards)} cards"
+        f"'{keyword}' -> {len(job_cards)} cards"
     )
 
     for card in job_cards[:12]:
@@ -233,7 +265,6 @@ async def _parse_linkedin_card(
     jd_text = ""
     recruiter_name = ""
     apply_type = "easy_apply"
-    external_url = ""
 
     try:
         await safe_goto(page, apply_url, handler=handler)
@@ -256,39 +287,32 @@ async def _parse_linkedin_card(
             recruiter_name = recruiter_el.get_text(strip=True)
 
         # ── Detect Easy Apply vs external apply ───────────────────────
+        # Check BeautifulSoup first (faster)
         easy_apply_btn = jd_soup.find(
-            lambda tag: tag.name == "button"
-            and "easy apply" in tag.get_text(strip=True).lower()
+            lambda tag: tag.name in ["button", "a"]
+            and "easy apply" in (tag.get_text(strip=True) + " " + (tag.get("aria-label") or "")).lower()
         )
+        
         if not easy_apply_btn:
             try:
+                # Live page check (more reliable)
                 live_btn = await page.query_selector(
-                    "button.jobs-apply-button, .jobs-apply-button--top-card"
+                    "button.jobs-apply-button, a.jobs-apply-button, .jobs-apply-button--top-card button, .jobs-apply-button--top-card a"
                 )
                 if live_btn:
                     btn_text = (await live_btn.inner_text()).strip().lower()
-                    if "easy apply" not in btn_text:
+                    aria_label = (await live_btn.get_attribute("aria-label") or "").lower()
+                    combined = btn_text + " " + aria_label
+                    if "easy apply" in combined:
+                        apply_type = "easy_apply"
+                    else:
                         apply_type = "external"
-                        href = await live_btn.get_attribute("href")
-                        if href and href.startswith("http"):
-                            external_url = href
-                        else:
-                            # Try capturing popup tab
-                            try:
-                                async with page.context.expect_page(timeout=5_000) as popup_info:
-                                    await live_btn.click()
-                                popup = await popup_info.value
-                                external_url = popup.url
-                                await popup.close()
-                                # Navigate back to job page
-                                await safe_goto(page, apply_url, handler=handler)
-                                await random_delay(1.0, 2.0)
-                            except Exception:
-                                pass
                 else:
                     apply_type = "external"
             except Exception:
                 apply_type = "easy_apply"  # fallback — try Easy Apply path
+        else:
+            apply_type = "easy_apply"
 
         await page.go_back(wait_until="domcontentloaded")
         await random_delay(1.0, 2.5)
@@ -300,7 +324,9 @@ async def _parse_linkedin_card(
         return None
 
     is_intern = _detect_internship(job_title, jd_text)
-    final_url = external_url if (apply_type == "external" and external_url) else apply_url
+    # Keep LinkedIn external jobs anchored to the LinkedIn job page. The apply
+    # phase clicks the real Apply button from a logged-in LinkedIn session.
+    final_url = apply_url
 
     return JobListing(
         job_title=job_title,
@@ -407,7 +433,7 @@ async def _scrape_naukri(
 
     print(
         f"[Naukri] {'Internship' if internship else 'Job'} "
-        f"'{keyword}' → {len(job_cards)} cards"
+        f"'{keyword}' -> {len(job_cards)} cards"
     )
 
     for card in job_cards[:12]:

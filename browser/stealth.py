@@ -185,6 +185,35 @@ def get_launch_args() -> dict:
     }
 
 
+def get_persistent_launch_args() -> dict:
+    """
+    Playwright chromium.launch_persistent_context() kwargs.
+
+    launch_persistent_context accepts a subset of launch() kwargs merged with
+    context kwargs.  We include headless / slow_mo / args here (they are valid
+    for persistent contexts) but do NOT include context-specific keys like
+    viewport or user_agent (those go in _persistent_context_options()).
+    """
+    from config import settings
+
+    return {
+        "headless": settings.headless,
+        "slow_mo":  settings.slow_mo,
+        "args": [
+            "--disable-blink-features=AutomationControlled",
+            "--disable-infobars",
+            "--disable-extensions",
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--lang=en-IN",
+            "--disable-notifications",
+            "--disable-save-password-bubble",
+        ],
+    }
+
+
 def get_context_options() -> dict:
     """Browser context options — realistic viewport, UA, locale, no permissions."""
     from config import settings
@@ -254,7 +283,7 @@ async def handle_email_verification(page: Page, email_address: str, code_selecto
     Pause execution so the user can manually retrieve and enter the verification code.
     Allows testing/logging in fresh accounts smoothly.
     """
-    print(f"[Stealth] 🔔 MANUAL VERIFICATION TRIGGERED.")
+    print(f"[Stealth] MANUAL VERIFICATION TRIGGERED.")
     print(f"[Stealth] Please check the inbox at: {email_address}")
     print("[Stealth] Pausing execution for 90 seconds to let you enter the code manually...")
     

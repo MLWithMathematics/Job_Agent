@@ -167,7 +167,7 @@ async def run_scorer_agent(job: JobListing, resume_text: str) -> ScorerOutput:
         old_score = output.score
         output.score = min(100, output.score + boost)
         if boost and old_score != output.score:
-            print(f"[Scorer] Fresher boost applied: {old_score} → {output.score}")
+            print(f"[Scorer] Fresher boost applied: {old_score} -> {output.score}")
             output.reasoning += f" (Fresher profile +{boost} boost applied.)"
 
     # Apply threshold or plausible chance
@@ -177,7 +177,7 @@ async def run_scorer_agent(job: JobListing, resume_text: str) -> ScorerOutput:
         output.status = "approved" if (output.score >= threshold or output.plausible_chance) else "skipped"
 
     print(
-        f"[Scorer] [{label}] {job.company} | {job.job_title} → "
+        f"[Scorer] [{label}] {job.company} | {job.job_title} -> "
         f"Score: {output.score} | Threshold: {threshold} | {output.status.upper()}"
     )
 

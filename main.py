@@ -213,7 +213,7 @@ async def apply_node(state: AgentState) -> AgentState:
 async def outreach_node(state: AgentState) -> AgentState:
     job = state["current_job"]
     if job.recruiter_name and state["application_status"] == "applied":
-        print(f"[Pipeline] Outreach → {job.recruiter_name} @ {job.company}")
+        print(f"[Pipeline] Outreach -> {job.recruiter_name} @ {job.company}")
         await run_outreach_agent(
             job=job,
             application_id=state["application_id"],
@@ -250,7 +250,7 @@ async def log_skip_node(state: AgentState) -> AgentState:
 async def log_result_node(state: AgentState) -> AgentState:
     job = state["current_job"]
     print(
-        f"[Pipeline] ✓ {job.company} | {job.job_title} → "
+        f"[Pipeline] [OK] {job.company} | {job.job_title} -> "
         f"{state['application_status'].upper()}"
     )
     return state
@@ -353,10 +353,10 @@ async def main() -> None:
         # Clear any stale skip flag from the previous iteration
         _ctrl.clear_skip()
 
-        kind = "🎓 Intern" if job.is_internship else "💼 Job"
-        print(f"\n{'─' * 60}")
+        kind = "[INTERN]" if job.is_internship else "[JOB]"
+        print(f"\n{'-' * 60}")
         print(f"[{i}/{len(job_listings)}] {kind}: {job.company} | {job.job_title}")
-        print(f"{'─' * 60}")
+        print(f"{'-' * 60}")
 
         if is_already_applied(job.apply_url):
             print("[Main] Already processed. Skipping.")
@@ -385,7 +385,7 @@ async def main() -> None:
             # Run pipeline — keyboard commands are checked before/after, not during
             final_state = await app.ainvoke(initial_state)
             status = final_state["application_status"]
-            print(f"[Main] → {status.upper()}")
+            print(f"[Main] -> {status.upper()}")
 
             if status == "applied":
                 applied_count += 1
@@ -411,9 +411,9 @@ async def main() -> None:
 
     print("\n" + "=" * 62)
     print(f"  Session complete:")
-    print(f"  ✅ Applied : {applied_count}")
-    print(f"  ⏭  Skipped : {skipped_count}")
-    print(f"  ❌ Failed  : {failed_count}")
+    print(f"  Applied : {applied_count}")
+    print(f"  Skipped : {skipped_count}")
+    print(f"  Failed  : {failed_count}")
     print("  Run: streamlit run dashboard/app.py")
     print("=" * 62)
 

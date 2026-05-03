@@ -109,7 +109,11 @@ Instructions:
 - If the question asks to "choose one" from a list, reply with ONLY that option word-for-word.
 - If you cannot find a relevant answer in the resume, reply with a single dash: -
 """
-    raw = await call_llm(prompt)
+    try:
+        raw = await call_llm(prompt)
+    except Exception as exc:
+        print(f"[LLM] Dynamic Q failed ({exc}). Leaving field blank.")
+        return ""
     # Strip markdown formatting the LLM might add
     answer = raw.strip().strip("*_`").strip()
     # Hard cap — prevents ElementHandle.type() timeout

@@ -30,3 +30,4 @@ rich
 tenacity
 tqdm
 python-dateutil
+apscheduler

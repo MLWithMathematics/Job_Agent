@@ -100,10 +100,48 @@ async def _get_apply_modal(page: Page):
 # ── Login ─────────────────────────────────────────────────────────────────────
 
 async def naukri_login(context: BrowserContext) -> Page:
-    """Log into Naukri.com with popup suppression throughout."""
+    """
+    Log into Naukri.com and return the logged-in page.
+
+    If the persistent session is already authenticated this function returns
+    immediately without entering credentials.  Login form fill only happens
+    when a login wall is detected.
+    """
     page = await context.new_page()
     handler = PopupHandler(page)
 
+    # ── Probe: are we already authenticated? ────────────────────────
+    already_logged_in = False
+    try:
+        await safe_goto(page, "https://www.naukri.com/mnjuser/homepage", handler=handler)
+        await random_delay(2.0, 3.5)
+        try:
+            await page.wait_for_load_state("networkidle", timeout=10_000)
+        except Exception:
+            pass
+        await handler.dismiss_and_escape()
+
+        url = page.url.lower()
+        if "login" in url or "nlogin" in url:
+            already_logged_in = False
+        elif "mnjuser" in url:
+            header = await page.query_selector(
+                ".nI-gNb-drawer, .nI-gNb-header, .nI-gNb-user-icon, .user-name"
+            )
+            already_logged_in = header is not None
+        else:
+            already_logged_in = False
+    except Exception as probe_err:
+        print(f"[Naukri] Session probe failed ({probe_err}) -- will do fresh login.")
+        already_logged_in = False
+
+    if already_logged_in:
+        print("[Naukri] Already authenticated via saved session -- skipping credential entry.")
+        await handler.dismiss_all()
+        print("[Naukri] Session active. [OK]")
+        return page
+
+    # ── Not logged in — fill credentials ─────────────────────────────
     await safe_goto(page, "https://www.naukri.com/nlogin/login", handler=handler)
     await random_delay(2.0, 4.0)
     await handler.dismiss_and_escape()
@@ -123,7 +161,7 @@ async def naukri_login(context: BrowserContext) -> Page:
 
     await human_click(page, "button[type='submit']")
 
-    print("[Stealth] Verifying Naukri login success...")
+    print("[Naukri] Verifying login success...")
     timer = 0
     while timer < 300:  # 5 minutes max
         try:
@@ -131,18 +169,18 @@ async def naukri_login(context: BrowserContext) -> Page:
             if "mnjuser" in url or "homepage" in url or await page.query_selector(
                 ".nI-gNb-drawer, .nI-gNb-header, .nI-gNb-user-icon, .user-name"
             ):
-                print("[Stealth] Successfully authenticated. Resuming flow...")
+                print("[Naukri] Successfully authenticated. Resuming flow...")
                 break
 
             if "challenge" in url or "captcha" in url or await page.query_selector(
                 "input[maxlength='6'], .otp-container, iframe[src*='captcha']"
             ):
                 if timer % 10 == 0:
-                    print("\n🚨 [SECURITY VERIFICATION DETECTED] 🚨")
+                    print("\n!! [SECURITY VERIFICATION DETECTED] !!")
                     print("Please solve the captcha or enter the OTP in the browser. Waiting...")
             else:
                 if timer % 15 == 0:
-                    print(f"\n[Stealth] Waiting for login to complete... (URL: {url})")
+                    print(f"\n[Naukri] Waiting for login to complete... (URL: {url})")
                     print("If it's stuck or failed, please manually resolve the login.")
 
             await asyncio.sleep(5)
@@ -161,8 +199,9 @@ async def naukri_login(context: BrowserContext) -> Page:
     await random_delay(1.0, 2.0)
     await handler.dismiss_all()
 
-    print("[Naukri] Logged in.")
+    print("[Naukri] Logged in. Session saved to disk. [OK]")
     return page
+
 
 
 # ── Apply flow ────────────────────────────────────────────────────────────────
@@ -200,9 +239,14 @@ async def apply_naukri(
             async with page.context.expect_page(timeout=4_000) as new_page_info:
                 await apply_btn.click()
             new_page = await new_page_info.value
+            # Wait for the new tab to navigate away from about:blank
+            try:
+                await new_page.wait_for_load_state("domcontentloaded", timeout=10_000)
+            except Exception:
+                pass
             await random_delay(1.5, 3.0)
             ext_url = new_page.url
-            if ext_url and "naukri.com" not in ext_url:
+            if ext_url and ext_url not in ("about:blank", "") and "naukri.com" not in ext_url:
                 print(f"[Naukri] External ATS detected (new tab): {ext_url}")
                 await handler.stop_auto_dismiss()
                 from browser.external_flow import apply_external_link
@@ -444,8 +488,18 @@ async def _handle_resume_upload(page: Page, resume_path: str) -> None:
 
 
 async def _fill_naukri_form(page: Page, resume_text: str, llm_answer_fn) -> None:
-    inputs = await page.query_selector_all(
-        "input[type='text'], input[type='number'], input[type='tel'], textarea"
+    """
+    Fill the current Naukri apply modal / chatbot form.
+    Scoped to the modal container so nothing on the job-listing page is touched.
+    """
+    # Scope queries to the modal to avoid touching page-level inputs
+    modal = await _get_apply_modal(page)
+    scope = modal or page
+
+    # --- Text / number / tel / email / url / textarea ---
+    inputs = await scope.query_selector_all(
+        "input[type='text'], input[type='number'], input[type='tel'], "
+        "input[type='email'], input[type='url'], textarea"
     )
     for inp in inputs:
         try:
@@ -459,46 +513,185 @@ async def _fill_naukri_form(page: Page, resume_text: str, llm_answer_fn) -> None
                 continue
             answer = await _resolve_answer(label_text, resume_text, llm_answer_fn)
             if answer:
-                await human_fill(inp, answer)
+                try:
+                    maxlen = await inp.get_attribute("maxlength")
+                    cap = int(maxlen) if maxlen and str(maxlen).isdigit() else 500
+                except Exception:
+                    cap = 500
+                await human_fill(inp, answer[:cap])
                 await random_delay(0.4, 1.0)
         except Exception as exc:
             print(f"[Naukri] Field warning: {exc}")
 
-    selects = await page.query_selector_all("select")
-    for sel_el in selects:
+    # --- Native select dropdowns ---
+    for sel_el in await scope.query_selector_all("select"):
         try:
+            if not await sel_el.is_visible():
+                continue
             label_text = await _get_field_label(page, sel_el)
             if not label_text:
                 continue
-            answer = get_answer(label_text)
+            answer = get_answer(label_text) or _settings_sync_answer(label_text)
             if answer:
-                await sel_el.select_option(label=answer)
-                await random_delay(0.4, 0.9)
+                try:
+                    await sel_el.select_option(label=answer)
+                    await random_delay(0.4, 0.9)
+                    continue
+                except Exception:
+                    pass
+            options = await sel_el.query_selector_all("option")
+            opts = [t for t in [(await o.inner_text()).strip() for o in options]
+                    if t and t not in ("Select", "-- Select --", "Choose", "")]
+            if opts:
+                ans = await llm_answer_fn(f"{label_text} (choose one: {', '.join(opts)})", resume_text)
+                if ans:
+                    try:
+                        await sel_el.select_option(label=ans)
+                        save_answer(label_text, ans)
+                        await random_delay(0.3, 0.7)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    # --- Radio fieldsets ---
+    for fs in await scope.query_selector_all("fieldset"):
+        try:
+            legend = await fs.query_selector("legend")
+            label_text = (await legend.inner_text()).strip() if legend else ""
+            radios = await fs.query_selector_all("input[type='radio']")
+            if not radios or any([await r.is_checked() for r in radios]):
+                continue
+            saved = get_answer(label_text) or _settings_sync_answer(label_text)
+            clicked = False
+            if saved:
+                for r in radios:
+                    r_label = await _get_field_label(page, r)
+                    if r_label and saved.lower() in r_label.lower():
+                        await r.click()
+                        await random_delay(0.2, 0.5)
+                        clicked = True
+                        break
+            if not clicked:
+                for r in radios:
+                    r_label = (await _get_field_label(page, r)).lower()
+                    if "yes" in r_label:
+                        await r.click()
+                        await random_delay(0.2, 0.5)
+                        clicked = True
+                        break
+                if not clicked and radios:
+                    await radios[0].click()
+                    await random_delay(0.2, 0.5)
+        except Exception:
+            pass
+
+    # --- Standalone checkboxes (terms, consent) ---
+    for cb in await scope.query_selector_all("input[type='checkbox']:not([disabled])"):
+        try:
+            if not await cb.is_visible() or await cb.is_checked():
+                continue
+            label = (await _get_field_label(page, cb)).lower()
+            if any(kw in label for kw in ("agree", "consent", "terms", "privacy", "authoriz")):
+                await cb.check()
+                await random_delay(0.2, 0.5)
         except Exception:
             pass
 
 
+def _settings_sync_answer(label: str) -> Optional[str]:
+    """Synchronous settings map lookup — used by form filling before LLM."""
+    full_name = settings.full_name or " ".join(
+        part for part in (settings.first_name, settings.last_name) if part
+    ).strip()
+    email = settings.email or settings.linkedin_email or settings.naukri_email
+
+    smap = {
+        "phone": settings.phone, "mobile": settings.phone,
+        "mobile number": settings.phone, "contact number": settings.phone,
+        "phone number": settings.phone,
+        "city": settings.current_location, "location": settings.current_location,
+        "current location": settings.current_location,
+        "notice period": settings.notice_period,
+        "current ctc": settings.current_ctc, "current salary": settings.current_ctc,
+        "expected ctc": settings.expected_ctc, "expected salary": settings.expected_ctc,
+        "total experience": settings.total_experience_years,
+        "years of experience": settings.total_experience_years,
+        "experience": settings.total_experience_years,
+        "full name": full_name, "name": full_name,
+        "first name": settings.first_name, "last name": settings.last_name,
+        "surname": settings.last_name,
+        "email": email, "email address": email,
+        "email id": email,
+        "linkedin": settings.linkedin_url, "linkedin url": settings.linkedin_url,
+        "github": settings.github_url, "github url": settings.github_url,
+        "portfolio": settings.portfolio_url, "website": settings.portfolio_url,
+        "college": settings.college, "university": settings.college,
+        "degree": settings.degree, "qualification": settings.degree,
+        "graduation year": settings.graduation_year,
+        "current company": settings.current_company,
+        "current role": settings.current_role,
+        "job title": settings.current_role, "designation": settings.current_role,
+        "work authorization": settings.work_authorization,
+        "eligible to work": settings.work_authorization,
+        "visa sponsorship": "No", "require sponsorship": "No",
+        "gender": settings.gender, "nationality": settings.nationality,
+    }
+    label_lower = label.lower()
+    for key, value in smap.items():
+        if key in label_lower and value:
+            return value
+    return None
+
+
 async def _resolve_answer(label: str, resume_text: str, llm_answer_fn) -> Optional[str]:
-    hard_fields = [
-        "phone", "mobile", "notice period", "current ctc", "expected ctc",
-        "current salary", "expected salary", "location", "city", "pincode",
-    ]
+    """Settings map → memory cache → stdin (sensitive only) → LLM."""
+    # 1. Settings (instant)
+    answer = _settings_sync_answer(label)
+    if answer:
+        print(f"[Settings] '{label}' -> '{answer}'")
+        save_answer(label, answer)
+        return answer
+
+    # 2. Memory cache
     saved = get_answer(label)
     if saved:
+        print(f"[FormMemory] '{label}' -> '{saved}'")
         return saved
+
+    # 3. stdin only for genuinely sensitive fields
+    sensitive = [
+        "date of birth",
+        "passport",
+        "ssn",
+        "aadhaar",
+        "pan number",
+        "bank account",
+        "name",
+        "full name",
+        "first name",
+        "last name",
+        "email",
+        "email address",
+        "email id",
+    ]
     label_lower = label.lower()
-    for hard in hard_fields:
-        if hard in label_lower:
-            print(f"\n[NEW FIELD] '{label}' — enter your answer:")
-            answer = input("  >> ").strip()
-            if answer:
-                save_answer(label, answer)
-                return answer
+    for field in sensitive:
+        if field in label_lower:
+            print(f"\n[Naukri][SENSITIVE FIELD] '{label}' — enter your answer:")
+            ans = input("  >> ").strip()
+            if ans:
+                save_answer(label, ans)
+                return ans
             return None
+
+    # 4. LLM
+    print(f"[LLM] Dynamic Q: '{label}'")
     answer = await llm_answer_fn(label, resume_text)
     if answer:
+        answer = answer.strip()[:300]
         save_answer(label, answer)
-    return answer
+    return answer or None
 
 
 async def _get_field_label(page: Page, element) -> str:

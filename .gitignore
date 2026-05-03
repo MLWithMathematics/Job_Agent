@@ -18,3 +18,7 @@ naukri_login_html.txt
 scratch
 **/ledger.db
 form_memory.json
+.codex
+browser/session_store/
+Project Memory - Claude.txt
+Instruction.txt

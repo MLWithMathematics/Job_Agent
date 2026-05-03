@@ -70,6 +70,26 @@ class Settings(BaseSettings):
     current_ctc: str = Field(default="")
     expected_ctc: str = Field(default="")
     total_experience_years: str = Field(default="")
+    # Identity
+    full_name: str = Field(default="")
+    first_name: str = Field(default="")
+    last_name: str = Field(default="")
+    email: str = Field(default="")
+    # Online profiles
+    linkedin_url: str = Field(default="")
+    github_url: str = Field(default="")
+    portfolio_url: str = Field(default="")
+    # Education
+    college: str = Field(default="")
+    degree: str = Field(default="")
+    graduation_year: str = Field(default="")
+    # Current position
+    current_company: str = Field(default="")
+    current_role: str = Field(default="")
+    # Eligibility
+    work_authorization: str = Field(default="Yes")
+    gender: str = Field(default="")
+    nationality: str = Field(default="")
 
     # ── Database ──────────────────────────────────────────────────────
     db_path: str = Field(default="memory/ledger.db")

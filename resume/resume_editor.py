@@ -258,36 +258,103 @@ def extract_full_text_from_pdf(path: str) -> str:
 def extract_bullets_from_pdf(path: str) -> List[str]:
     """
     Extract bullet-like lines from a PDF resume.
-    Heuristic: lines starting with bullet chars or that look like achievement
-    sentences (start with a capital verb / number, end with a period or metric).
+
+    Strategy (in order):
+      1. Lines that start with a recognised bullet glyph (Unicode-aware).
+      2. Lines that start with a Markdown-style bullet (-, *, +, numbered).
+      3. Lines that match a broad action-verb pattern.
+      4. Lines longer than 40 chars that look like achievement sentences
+         (start with capital, contain metrics or tech keywords).
+
+    PDF text extraction collapses formatting, so we also handle:
+      - Multi-line bullets that are joined by pdfminer on one line.
+      - Spurious short header/footer lines (skipped if < 15 chars).
+      - Unicode ligature / hyphen variants (\u2013, \u2014, etc.).
     """
     full_text = extract_full_text_from_pdf(path)
     if not full_text:
         return []
 
-    BULLET_CHARS = ("•", "●", "◦", "-", "–", "▪", "▸", "→", "*")
+    # Bullet glyphs pdfminer preserves from PDF encoding
+    BULLET_GLYPHS = frozenset(
+        "\u2022\u2023\u2043\u204c\u204d\u2219\u25aa\u25ab"
+        "\u25b8\u25cf\u25e6\u2605\u2606\u29bf\u30fb"
+        "\u2212\u2013\u2014"  # en-dash / em-dash also used as bullets
+        "\u25ba\u2192\u27a4\u2714\u2718"
+    )
+    ASCII_BULLETS = frozenset("-", "*", "+", "\u00b7", "\u00bb", "\u00b9")
+    ALL_BULLETS = BULLET_GLYPHS | ASCII_BULLETS
+
+    # Broad action-verb list (past tense + gerunds)
     VERB_PATTERN = re.compile(
         r"^(Developed|Built|Designed|Implemented|Led|Created|Improved|Reduced|"
         r"Achieved|Deployed|Trained|Optimized|Automated|Researched|Analysed|"
         r"Analyzed|Managed|Delivered|Increased|Decreased|Collaborated|Published|"
-        r"Fine.tuned|Engineered|Contributed|Integrated|Migrated|Established)\b",
+        r"Fine.?tuned|Engineered|Contributed|Integrated|Migrated|Established|"
+        r"Spearheaded|Architected|Streamlined|Accelerated|Launched|Maintained|"
+        r"Monitored|Configured|Supported|Designed|Refactored|Documented|"
+        r"Evaluated|Investigated|Prototyped|Demonstrated|Presented|Proposed|"
+        r"Executed|Facilitated|Coordinated|Produced|Resolved|Identified|"
+        r"Developed|Gathered|Generated|Reviewed|Tested|Validated|Implemented)",
         re.IGNORECASE,
     )
 
+    # Numbered list pattern:  "1. ... "  "(a) ..."  "a) ..."
+    NUMBERED_RE = re.compile(r"^(\d{1,2}[.)\]]|[a-z][.)\]])\s+", re.IGNORECASE)
+
     bullets: List[str] = []
+    seen: set = set()
+
     for line in full_text.splitlines():
-        line = line.strip()
-        if not line or len(line) < 15:
+        line = line.rstrip()
+        if not line:
             continue
 
-        # Remove leading bullet characters
-        cleaned = line.lstrip("".join(BULLET_CHARS) + " \t")
+        stripped = line.lstrip()
+        if len(stripped) < 15:          # skip section headers, page numbers, etc.
+            continue
 
-        if line[0] in BULLET_CHARS:
-            if len(cleaned) > 10:
-                bullets.append(cleaned)
-        elif VERB_PATTERN.match(cleaned):
-            bullets.append(cleaned)
+        # Detect and strip leading bullet glyph
+        first_char = stripped[0] if stripped else ""
+        is_bullet = False
+        cleaned = stripped
+
+        if first_char in ALL_BULLETS:
+            is_bullet = True
+            cleaned = stripped[1:].lstrip()
+        elif NUMBERED_RE.match(stripped):
+            is_bullet = True
+            cleaned = NUMBERED_RE.sub("", stripped).lstrip()
+        elif stripped.startswith(("- ", "* ", "+ ")):
+            # Explicit space after ASCII bullet prevents false positives
+            is_bullet = True
+            cleaned = stripped[2:].lstrip()
+
+        if not cleaned or len(cleaned) < 15:
+            continue
+
+        norm = cleaned.strip()
+
+        if is_bullet:
+            if norm not in seen:
+                seen.add(norm)
+                bullets.append(norm)
+        elif VERB_PATTERN.match(norm):
+            if norm not in seen:
+                seen.add(norm)
+                bullets.append(norm)
+        elif (
+            len(norm) >= 40
+            and norm[0].isupper()
+            and any(kw in norm.lower() for kw in (
+                "%", "x ", "k ", "m ", "million", "billion",
+                "python", "model", "system", "api", "data", "ml",
+                "accuracy", "latency", "throughput", "reduced", "improved",
+            ))
+        ):
+            if norm not in seen:
+                seen.add(norm)
+                bullets.append(norm)
 
     return bullets
 

@@ -33,14 +33,90 @@ def _save(data: Dict[str, str]) -> None:
 def _seed_defaults() -> None:
     """Pre-populate from .env values if memory file is empty / missing."""
     data = _load()
+    full_name = settings.full_name or " ".join(
+        part for part in (settings.first_name, settings.last_name) if part
+    ).strip()
+    email = settings.email or settings.linkedin_email or settings.naukri_email
+
     defaults = {
+        # Basic contact
         "phone": settings.phone,
+        "mobile": settings.phone,
+        "mobile number": settings.phone,
+        "contact number": settings.phone,
+        "phone number": settings.phone,
         "current location": settings.current_location,
+        "location": settings.current_location,
+        "city": settings.current_location,
+        # Work terms
         "notice period": settings.notice_period,
         "current ctc": settings.current_ctc,
+        "current salary": settings.current_ctc,
         "expected ctc": settings.expected_ctc,
+        "expected salary": settings.expected_ctc,
         "total experience years": settings.total_experience_years,
         "years of experience": settings.total_experience_years,
+        "experience": settings.total_experience_years,
+        "total experience": settings.total_experience_years,
+        # Identity
+        "full name": full_name,
+        "name": full_name,
+        "first name": settings.first_name,
+        "last name": settings.last_name,
+        "surname": settings.last_name,
+        "email": email,
+        "email address": email,
+        "email id": email,
+        # Online profiles
+        "linkedin": settings.linkedin_url,
+        "linkedin url": settings.linkedin_url,
+        "linkedin profile": settings.linkedin_url,
+        "linkedin profile url": settings.linkedin_url,
+        "github": settings.github_url,
+        "github url": settings.github_url,
+        "github profile": settings.github_url,
+        "portfolio": settings.portfolio_url,
+        "portfolio url": settings.portfolio_url,
+        "website": settings.portfolio_url,
+        "personal website": settings.portfolio_url,
+        # Education
+        "college": settings.college,
+        "university": settings.college,
+        "institution": settings.college,
+        "school": settings.college,
+        "degree": settings.degree,
+        "qualification": settings.degree,
+        "highest qualification": settings.degree,
+        "graduation year": settings.graduation_year,
+        "year of graduation": settings.graduation_year,
+        "passing year": settings.graduation_year,
+        # Current position
+        "current company": settings.current_company,
+        "current employer": settings.current_company,
+        "company name": settings.current_company,
+        "current role": settings.current_role,
+        "current job title": settings.current_role,
+        "job title": settings.current_role,
+        "designation": settings.current_role,
+        # Eligibility — these are commonly asked as yes/no
+        "are you authorized to work": settings.work_authorization,
+        "work authorization": settings.work_authorization,
+        "are you legally eligible": settings.work_authorization,
+        "eligible to work in india": settings.work_authorization,
+        "eligible to work": settings.work_authorization,
+        "require visa sponsorship": "No",
+        "do you require sponsorship": "No",
+        "visa sponsorship": "No",
+        "gender": settings.gender,
+        "nationality": settings.nationality,
+        # Common yes/no questions answered by default
+        "are you a fresher": "No",
+        "fresher": "No",
+        "are you currently employed": "Yes" if settings.current_company else "No",
+        "currently employed": "Yes" if settings.current_company else "No",
+        "willing to relocate": "Yes",
+        "open to relocation": "Yes",
+        "immediate joiner": "Yes" if settings.notice_period in ("0", "immediate", "Immediate") else "No",
     }
     updated = False
     for key, val in defaults.items():
