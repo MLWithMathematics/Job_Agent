@@ -19,10 +19,9 @@ run_apply_agent(job, tailored_resume_path, resume_text) -> str
 cleanup_apply_sessions()   # call once after all jobs in the run are done
 
 Routing logic:
-  - LinkedIn Easy Apply     → apply_linkedin_easy_apply()  (built-in external fallback)
-  - LinkedIn external URL   → apply_linkedin_easy_apply()  (handles popup tab capture)
-  - Naukri native apply     → apply_naukri()               (handles external redirect too)
-  - True external ATS URL   → apply_external_link()        (opens a fresh tab)
+  - LinkedIn Easy Apply     → apply_linkedin_easy_apply()  (automated)
+  - Naukri native apply     → apply_naukri()               (automated)
+  - External / No Easy Apply→ recorded as 'manual_apply'   (shown in dashboard)
 """
 from __future__ import annotations
 
@@ -44,38 +43,29 @@ from browser.linkedin_flow import (
     solve_captcha_if_present,
 )
 from browser.naukri_flow import naukri_login, apply_naukri, profile_refresh
-from browser.external_flow import apply_external_link
 from llm_client import dynamic_qa
 from memory.ledger import update_status
 from config import settings
 
 
 # ── Module-level session cache ────────────────────────────────────────────────
-# Key: "linkedin" | "naukri" | "external"
+# Key: "linkedin" | "naukri"
 # Value: { "pw": Playwright, "context": Context, "page": Page }
-# For "linkedin" and "naukri" these are *persistent* contexts (cookies saved
-# to disk).  "external" still uses a regular ephemeral context.
+# Both use *persistent* contexts (cookies saved to disk).
 _SESSIONS: Dict[str, Any] = {}
 
-_STEALTH_SCRIPT = """
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    Object.defineProperty(navigator, 'plugins',   { get: () => [1, 2, 3] });
-"""
 
-
-async def _get_or_create_session(platform: str, apply_type: str):
+async def _get_or_create_session(platform: str):
     """
-    Return (context, page) for *platform*.
+    Return (context, page) for *platform* (linkedin or naukri only).
 
-    For LinkedIn and Naukri: uses a persistent context (saved to disk).
+    Uses a persistent context (saved to disk):
       - If a cached in-memory session is alive and healthy → reuse it.
       - Otherwise: launch the persistent context, check if already logged in
         (cookies on disk are valid), and only call the login function if the
         session has expired.
-
-    For external ATS: ephemeral context, no authentication needed.
     """
-    key = platform if platform in {"linkedin", "naukri"} else "external"
+    key = platform  # "linkedin" or "naukri"
 
     # ── Try to reuse an in-memory session ─────────────────────────────
     if key in _SESSIONS:
@@ -121,20 +111,7 @@ async def _get_or_create_session(platform: str, apply_type: str):
             print("[Apply] Naukri login complete — session saved to disk. [OK]")
 
     else:
-        # External ATS — no platform login required
-        print("[Apply] Starting external session (no platform login needed)...")
-        pw = await async_playwright().start()
-        browser = await pw.chromium.launch(**get_launch_args())
-        context = await browser.new_context(**get_context_options())
-        await context.add_init_script(STEALTH_INIT_SCRIPT)
-        page = await context.new_page()
-        _SESSIONS[key] = {
-            "pw": pw,
-            "browser": browser,
-            "context": context,
-            "page": page,
-        }
-        return context, page
+        raise ValueError(f"Unknown platform for session: {key}")
 
     _SESSIONS[key] = {
         "pw":      pw,
@@ -148,17 +125,14 @@ async def cleanup_apply_sessions() -> None:
     """
     Close every cached browser session gracefully.
 
-    For persistent sessions (LinkedIn / Naukri) closing the context flushes all
-    cookies and storage to disk automatically — they will be reloaded on the
-    next run.
+    Closing the persistent context flushes all cookies and storage to disk
+    automatically — they will be reloaded on the next run.
 
     Call this once after all jobs in the run have been processed.
     """
     for key in list(_SESSIONS.keys()):
         sess = _SESSIONS.pop(key)
-        # Persistent contexts have no "browser" key — just "context" + "pw"
         for target, method in [
-            ("browser", "close"),   # external ephemeral only
             ("context", "close"),   # persistent contexts
             ("pw",      "stop"),
         ]:
@@ -182,41 +156,60 @@ async def run_apply_agent(
     Reuses the cached/persistent authenticated session — login only fires when
     the stored session is absent or expired.
 
-    Returns: 'applied' | 'failed' | 'skipped'
+    Routing:
+      - LinkedIn Easy Apply  → automated via apply_linkedin_easy_apply()
+      - Naukri native apply  → automated via apply_naukri()
+      - External / No Easy Apply → recorded as 'manual_apply' (user applies
+        manually; the dashboard highlights these with a direct link).
+
+    Returns: 'applied' | 'failed' | 'skipped' | 'manual_apply'
     """
+    # ── External / non-Easy-Apply jobs → manual apply card ─────────────
+    if job.apply_type == "external":
+        print(
+            f"[Apply] ⚠ External apply (no Easy Apply): {job.company} | {job.job_title}\n"
+            f"        URL: {job.apply_url}\n"
+            f"        → Marked as MANUAL APPLY in dashboard."
+        )
+        update_status(
+            job.apply_url,
+            "manual_apply",
+            notes=f"No Easy Apply — apply manually at: {job.apply_url}",
+        )
+        return "manual_apply"
+
     async def llm_answer_fn(question: str, res_text: str) -> str:
         return await dynamic_qa(question, res_text)
 
     try:
-        context, page = await _get_or_create_session(job.platform, job.apply_type)
+        context, page = await _get_or_create_session(job.platform)
 
-        # LinkedIn-origin jobs stay in the logged-in LinkedIn context.
+        # ── LinkedIn Easy Apply ───────────────────────────────────────
         if job.platform == "linkedin":
-            if job.apply_type == "external" and "linkedin.com" not in job.apply_url:
-                ext_page = await context.new_page()
-                try:
-                    success = await apply_external_link(
-                        page=ext_page,
-                        apply_url=job.apply_url,
-                        tailored_resume_path=tailored_resume_path,
-                        resume_text=resume_text,
-                        llm_answer_fn=llm_answer_fn,
-                    )
-                finally:
-                    await ext_page.close()
+            success = await apply_linkedin_easy_apply(
+                page=page,
+                apply_url=job.apply_url,
+                tailored_resume_path=tailored_resume_path,
+                resume_text=resume_text,
+                llm_answer_fn=llm_answer_fn,
+            )
+            if success:
+                update_status(job.apply_url, "applied")
+                print(f"[Apply] {job.company} | {job.job_title} -> applied")
+                return "applied"
             else:
-                success = await apply_linkedin_easy_apply(
-                    page=page,
-                    apply_url=job.apply_url,
-                    tailored_resume_path=tailored_resume_path,
-                    resume_text=resume_text,
-                    llm_answer_fn=llm_answer_fn,
+                # Easy Apply failed = no Easy Apply button / modal didn't open
+                # -> mark as manual_apply so user can apply via dashboard
+                update_status(
+                    job.apply_url,
+                    "manual_apply",
+                    notes=f"Easy Apply not available or failed — apply manually at: {job.apply_url}",
                 )
+                print(f"[Apply] {job.company} | {job.job_title} -> manual_apply")
+                return "manual_apply"
 
-        # ── Naukri native apply (also handles external ATS redirects) ─
-        elif job.apply_type == "naukri" or (
-            job.platform == "naukri" and job.apply_type != "external"
-        ):
+        # ── Naukri native apply ───────────────────────────────────────
+        elif job.platform == "naukri":
             success = await apply_naukri(
                 page=page,
                 apply_url=job.apply_url,
@@ -226,32 +219,20 @@ async def run_apply_agent(
             )
             if success:
                 await profile_refresh(context)
-
-        # ── True external ATS (non-LinkedIn, non-Naukri URL) ──────────
-        elif job.apply_type == "external":
-            ext_page = await context.new_page()
-            try:
-                success = await apply_external_link(
-                    page=ext_page,
-                    apply_url=job.apply_url,
-                    tailored_resume_path=tailored_resume_path,
-                    resume_text=resume_text,
-                    llm_answer_fn=llm_answer_fn,
-                )
-            finally:
-                await ext_page.close()
+                update_status(job.apply_url, "applied")
+                print(f"[Apply] {job.company} | {job.job_title} -> applied")
+                return "applied"
+            else:
+                update_status(job.apply_url, "failed")
+                print(f"[Apply] {job.company} | {job.job_title} -> failed")
+                return "failed"
 
         else:
             print(
-                f"[Apply] Unknown apply_type='{job.apply_type}' "
-                f"platform='{job.platform}' — skipping."
+                f"[Apply] Unknown platform='{job.platform}' "
+                f"apply_type='{job.apply_type}' — skipping."
             )
             return "skipped"
-
-        status = "applied" if success else "failed"
-        update_status(job.apply_url, status)
-        print(f"[Apply] {job.company} | {job.job_title} -> {status}")
-        return status
 
     except Exception as exc:
         print(f"[Apply] Exception for {job.company}: {exc}")

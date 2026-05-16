@@ -160,5 +160,58 @@ def list_all() -> Dict[str, str]:
     return _load()
 
 
+def _seed_from_profile_qa() -> None:
+    """
+    Load resume/profile_qa.yaml and merge its answers into form memory.
+    Keys are normalized (lowercase, no punctuation) so they match fuzzy lookups.
+    Existing answers are NOT overwritten — the user's manually corrected
+    answers always take priority.
+    """
+    import os
+    path = settings.profile_qa_path if hasattr(settings, "profile_qa_path") else "resume/profile_qa.yaml"
+    if not os.path.exists(path):
+        return
+
+    data = _load()
+    updated = False
+
+    try:
+        import yaml
+        with open(path, "r", encoding="utf-8") as f:
+            profile = yaml.safe_load(f) or {}
+    except ImportError:
+        # No PyYAML — parse simple "key: value" lines manually
+        profile = {}
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if ":" in line:
+                        key, _, val = line.partition(":")
+                        val = val.strip().strip('"').strip("'")
+                        if val:
+                            profile[key.strip()] = val
+        except Exception:
+            return
+    except Exception:
+        return
+
+    for key, val in profile.items():
+        if not val or not str(val).strip():
+            continue
+        val = str(val).strip()
+        # Normalize the key like form_memory does
+        norm = _normalize(key.replace("_", " "))
+        if norm not in data:
+            data[norm] = val
+            updated = True
+
+    if updated:
+        _save(data)
+
+
 # Seed defaults on import
 _seed_defaults()
+_seed_from_profile_qa()

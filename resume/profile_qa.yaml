@@ -1,0 +1,97 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# profile_qa.yaml — Your Personal Easy Apply Answer Sheet
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# This file is READ by the LLM whenever it needs to answer a dynamic form
+# question during Easy Apply.  The LLM uses these facts AS-IS, so write
+# answers exactly as you want them typed into the form field.
+#
+# ✅  Edit this file to match YOUR details.
+# ✅  Add any new Q&A pairs you encounter — they will be used automatically.
+# ✅  The LLM will prefer answers from this file over guessing from the resume.
+#
+# Format:  "question keyword or phrase": "exact answer to type"
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Identity ──────────────────────────────────────────────────────────────────
+full_name: "Ray saini"
+first_name: "Ray"
+last_name: "Saini"
+email: ""
+phone: ""
+gender: "Male"
+nationality: "Indian"
+
+# ── Location ──────────────────────────────────────────────────────────────────
+current_location: "India"
+current_city: "India"
+willing_to_relocate: "Yes"
+preferred_work_location: "Remote / Hybrid"
+
+# ── Education ─────────────────────────────────────────────────────────────────
+college: ""
+university: ""
+degree: ""
+highest_qualification: ""
+graduation_year: ""
+cgpa: ""
+percentage: ""
+
+# ── Work Experience ───────────────────────────────────────────────────────────
+total_experience_years: "0"
+current_company: ""
+current_role: ""
+work_experience_summary: "Fresher with strong ML/AI project experience"
+
+# ── Compensation & Availability ───────────────────────────────────────────────
+# These are the MOST COMMON questions that cause Easy Apply stalls.
+# Write answers EXACTLY as you'd type them in the form field.
+stipend_expectation: "10000"
+salary_expectation: "10000"
+expected_ctc: "10000"
+current_ctc: "0"
+notice_period: "Immediately"
+
+# Start date — use a concrete answer the form will accept
+earliest_start_date: "Immediately"
+when_can_you_start: "Immediately"
+joining_date: "Immediately"
+available_from: "Immediately"
+
+# ── Eligibility ───────────────────────────────────────────────────────────────
+work_authorization: "Yes"
+authorized_to_work_in_india: "Yes"
+eligible_to_work: "Yes"
+require_visa_sponsorship: "No"
+require_sponsorship: "No"
+are_you_a_fresher: "Yes"
+currently_employed: "No"
+immediate_joiner: "Yes"
+
+# ── Skills & Tools ────────────────────────────────────────────────────────────
+programming_languages: "Python, C++, JavaScript"
+frameworks: "TensorFlow, PyTorch, Scikit-learn, FastAPI, React"
+tools: "Git, Docker, VS Code, Jupyter"
+specialization: "Machine Learning, NLP, Deep Learning"
+
+# ── Online Profiles ───────────────────────────────────────────────────────────
+linkedin_url: ""
+github_url: ""
+portfolio_url: ""
+personal_website: ""
+
+# ── Common Yes/No Questions ──────────────────────────────────────────────────
+willing_to_work_remotely: "Yes"
+willing_to_work_in_shifts: "Yes"
+willing_to_travel: "Yes"
+have_laptop: "Yes"
+have_reliable_internet: "Yes"
+comfortable_with_unpaid_internship: "No"
+completed_any_internship: "No"
+
+# ── Custom Q&A ────────────────────────────────────────────────────────────────
+# Add any questions you encounter frequently below.
+# The key should be a short phrase matching the form field label.
+# Example:
+#   "why do you want to join": "Passionate about applying ML to real-world problems"
+#   "describe a project": "Built an NLP pipeline for resume screening using transformers"

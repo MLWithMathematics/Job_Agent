@@ -343,6 +343,7 @@ async def main() -> None:
     applied_count = 0
     skipped_count = 0
     failed_count = 0
+    manual_count = 0
 
     for i, job in enumerate(job_listings, 1):
         # ── Check for stop signal (between jobs, never mid-apply) ─────
@@ -391,6 +392,8 @@ async def main() -> None:
                 applied_count += 1
             elif status == "skipped":
                 skipped_count += 1
+            elif status == "manual_apply":
+                manual_count += 1
             else:
                 failed_count += 1
 
@@ -411,9 +414,10 @@ async def main() -> None:
 
     print("\n" + "=" * 62)
     print(f"  Session complete:")
-    print(f"  Applied : {applied_count}")
-    print(f"  Skipped : {skipped_count}")
-    print(f"  Failed  : {failed_count}")
+    print(f"  Applied      : {applied_count}")
+    print(f"  Manual Apply : {manual_count}  (check dashboard for links)")
+    print(f"  Skipped      : {skipped_count}")
+    print(f"  Failed       : {failed_count}")
     print("  Run: streamlit run dashboard/app.py")
     print("=" * 62)
 

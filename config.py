@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     base_resume_docx: str = Field(default="resume/base_resume.docx")
     base_resume_tex: str = Field(default="resume/base_resume.tex")
     base_resume_pdf: str = Field(default="resume/base_resume.pdf")
+    profile_qa_path: str = Field(
+        default="resume/profile_qa.yaml",
+        description="YAML file with pre-written answers for common Easy Apply questions",
+    )
     tailored_resume_dir: str = Field(default="resume/tailored/")
 
     # ── Personal defaults ─────────────────────────────────────────────

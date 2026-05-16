@@ -40,11 +40,24 @@ st.markdown(
         padding: 1rem 1.5rem;
         border: 1px solid #313244;
     }
-    .status-applied   { color: #a6e3a1; font-weight: 600; }
-    .status-skipped   { color: #f38ba8; }
-    .status-failed    { color: #fab387; }
-    .status-interview { color: #89dceb; font-weight: 700; }
-    .status-pending   { color: #cdd6f4; }
+    .status-applied       { color: #a6e3a1; font-weight: 600; }
+    .status-skipped       { color: #f38ba8; }
+    .status-failed        { color: #fab387; }
+    .status-interview     { color: #89dceb; font-weight: 700; }
+    .status-pending       { color: #cdd6f4; }
+    .status-manual_apply  { color: #f9e2af; font-weight: 600; }
+
+    .manual-apply-card {
+        background: linear-gradient(135deg, #1e1e2e 0%, #2d2a1e 100%);
+        border: 1px solid #f9e2af44;
+        border-radius: 12px;
+        padding: 1rem 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .manual-apply-card:hover {
+        border-color: #f9e2af;
+        box-shadow: 0 0 12px #f9e2af22;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -121,16 +134,17 @@ st.divider()
 
 # ── Summary Metrics ───────────────────────────────────────────────────────────
 
-col1, col2, col3, col4, col5 = st.columns(5)
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 if df.empty:
-    for col in [col1, col2, col3, col4, col5]:
+    for col in [col1, col2, col3, col4, col5, col6]:
         with col:
             st.metric("—", "0")
 else:
     total = len(df)
     applied = len(df[df["status"] == "applied"])
     interviews = len(df[df["status"] == "interview"])
+    manual_apply = len(df[df["status"] == "manual_apply"])
     avg_score = int(df["match_score"].mean()) if not df["match_score"].isna().all() else 0
     outreach_count = int(df["outreach_sent"].sum())
 
@@ -142,13 +156,57 @@ else:
     with col2:
         st.metric("Applied", applied, delta=f"{interviews} interviews")
     with col3:
-        st.metric("Avg Match Score", f"{avg_score}/100")
+        st.metric("🔗 Manual Apply", manual_apply)
     with col4:
-        st.metric("LinkedIn / Naukri", f"{li_count} / {nk_count}")
+        st.metric("Avg Match Score", f"{avg_score}/100")
     with col5:
+        st.metric("LinkedIn / Naukri", f"{li_count} / {nk_count}")
+    with col6:
         st.metric("Outreach Sent", outreach_count)
 
 st.divider()
+
+
+# ── Manual Apply Required Section ─────────────────────────────────────────────
+
+if not df.empty:
+    manual_df = df[df["status"] == "manual_apply"].copy()
+    if not manual_df.empty:
+        st.subheader("🔗 Manual Apply Required")
+        st.caption(
+            f"**{len(manual_df)} job(s)** found without Easy Apply. "
+            "The agent could not auto-apply — please apply manually using the links below."
+        )
+
+        for _, row in manual_df.iterrows():
+            with st.container():
+                mcol1, mcol2, mcol3 = st.columns([3, 1, 1])
+
+                with mcol1:
+                    st.markdown(
+                        f"**{row['company']}** — {row['job_title']}  \n"
+                        f"🌐 [{row['platform'].capitalize()}]({row['apply_url']})  |  "
+                        f"Score: **{row['match_score']}**"
+                    )
+
+                with mcol2:
+                    st.link_button(
+                        "🔗 Apply Now",
+                        row["apply_url"],
+                        use_container_width=True,
+                    )
+
+                with mcol3:
+                    if st.button(
+                        "✅ Done",
+                        key=f"manual_done_{row['id']}",
+                        use_container_width=True,
+                    ):
+                        update_status_by_id(row["id"], "applied")
+                        st.cache_data.clear()
+                        st.rerun()
+
+        st.divider()
 
 
 # ── Charts row ────────────────────────────────────────────────────────────────
@@ -191,6 +249,8 @@ if not df.empty:
             "failed": "#fab387",
             "interview": "#89dceb",
             "pending": "#cdd6f4",
+            "manual_apply": "#f9e2af",
+            "rejected": "#f38ba8",
         }
         fig2 = px.pie(
             status_counts,
@@ -252,12 +312,24 @@ else:
 
     st.caption(f"Showing {len(filtered)} of {len(df)} records")
 
+    # Status badge helper
+    STATUS_EMOJI = {
+        "applied": "✅",
+        "manual_apply": "🔗",
+        "interview": "🎯",
+        "skipped": "⏭️",
+        "failed": "❌",
+        "pending": "⏳",
+        "rejected": "🚫",
+    }
+
     # Render rows with action buttons
     for _, row in filtered.iterrows():
+        status_emoji = STATUS_EMOJI.get(row["status"], "❓")
         with st.expander(
             f"**{row['company']}** — {row['job_title']}  |  "
             f"Score: {row['match_score']}  |  "
-            f"[{row['status'].upper()}]  |  "
+            f"{status_emoji} [{row['status'].upper().replace('_', ' ')}]  |  "
             f"{row['platform'].capitalize()}",
             expanded=False,
         ):
@@ -273,6 +345,16 @@ else:
                 st.markdown(
                     f"**Outreach:** {'✅ Sent' if row['outreach_sent'] else '❌ Not sent'}"
                 )
+
+                # Manual apply: show prominent apply link
+                if row["status"] == "manual_apply":
+                    st.markdown("---")
+                    st.warning("⚠️ This job requires **manual application** (no Easy Apply).")
+                    st.link_button(
+                        "🔗 Open & Apply Manually",
+                        row["apply_url"],
+                        use_container_width=True,
+                    )
 
             with detail_col2:
                 st.markdown("**Update Status:**")

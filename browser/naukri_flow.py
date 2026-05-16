@@ -11,7 +11,8 @@ Fixes applied:
   - _get_next_action() now scopes button search inside the apply modal,
     preventing background "Apply" buttons from being mistaken for next actions
   - External apply detection: when Naukri's Apply button redirects to a
-    non-Naukri URL (new tab or same-tab), the external ATS flow is used.
+    non-Naukri URL (new tab or same-tab), the job is marked for manual
+    apply instead of attempting external form automation.
 """
 from __future__ import annotations
 
@@ -248,20 +249,13 @@ async def apply_naukri(
             ext_url = new_page.url
             if ext_url and ext_url not in ("about:blank", "") and "naukri.com" not in ext_url:
                 print(f"[Naukri] External ATS detected (new tab): {ext_url}")
+                print("[Naukri] → Flagging for manual apply (external flow disabled).")
                 await handler.stop_auto_dismiss()
-                from browser.external_flow import apply_external_link
-                success = await apply_external_link(
-                    page=new_page,
-                    apply_url=ext_url,
-                    tailored_resume_path=tailored_resume_path,
-                    resume_text=resume_text,
-                    llm_answer_fn=llm_answer_fn,
-                )
                 try:
                     await new_page.close()
                 except Exception:
                     pass
-                return success
+                return False
             else:
                 # New tab was also Naukri (unlikely) — close it and proceed on original
                 try:
@@ -279,16 +273,9 @@ async def apply_naukri(
         current_url = page.url
         if "naukri.com" not in current_url:
             print(f"[Naukri] External ATS detected (same tab redirect): {current_url}")
+            print("[Naukri] → Flagging for manual apply (external flow disabled).")
             await handler.stop_auto_dismiss()
-            from browser.external_flow import apply_external_link
-            success = await apply_external_link(
-                page=page,
-                apply_url=current_url,
-                tailored_resume_path=tailored_resume_path,
-                resume_text=resume_text,
-                llm_answer_fn=llm_answer_fn,
-            )
-            return success
+            return False
 
         # ── Quick / profile-based apply: done after the first click ──────
         if await _is_naukri_success(page):

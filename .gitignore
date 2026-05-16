@@ -4,7 +4,7 @@ dist/
 build/
 **/__pycache__/
 .env
-graphify-out
+graphify-out/
 V3 readme.txt
 resume/tailored
 resume/base_resume.docx
@@ -13,6 +13,7 @@ CLAUDE.md
 R.md
 .graphifyignore
 naukri_login_html.txt
+.agents
 .agent
 .claude
 scratch
@@ -22,3 +23,4 @@ form_memory.json
 browser/session_store/
 Project Memory - Claude.txt
 Instruction.txt
+AGENTS.md
