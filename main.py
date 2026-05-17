@@ -12,13 +12,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from typing_extensions import TypedDict
 from langgraph.graph import StateGraph, END
 
-from agents.search_agent import run_search_agent, JobListing
+from agents.search_agent import stream_search_agent, JobListing
 from agents.scorer_agent import run_scorer_agent, ScorerOutput
 from agents.tailoring_agent import run_tailoring_agent
 from agents.apply_agent import run_apply_agent
 from agents.outreach_agent import run_outreach_agent
 from resume.resume_editor import load_resume
 from memory.ledger import upsert_application, is_already_applied
+from browser.session_manager import cleanup_shared_sessions
 from config import settings
 
 
@@ -327,90 +328,86 @@ async def main() -> None:
 
     print(f"[Main] Resume: {len(resume_text)} chars, {len(resume_bullets)} bullets.")
 
-    # ── Search ────────────────────────────────────────────────────────
-    print("\n[Main] Running Search Agent (jobs + internships)...")
-    job_listings = await run_search_agent()
-
-    if not job_listings:
-        print("[Main] No listings found. Exiting.")
-        return
-
-    internships = [j for j in job_listings if j.is_internship]
-    jobs = [j for j in job_listings if not j.is_internship]
-    print(f"[Main] {len(jobs)} full-time + {len(internships)} internships to process.\n")
-
+    # ── Streamed Search & Application ─────────────────────────────────
+    print("\n[Main] Running Streamed Search Agent (jobs + internships) in Background...")
+    
     app = build_graph()
     applied_count = 0
     skipped_count = 0
     failed_count = 0
     manual_count = 0
+    processed_total = 0
 
-    for i, job in enumerate(job_listings, 1):
-        # ── Check for stop signal (between jobs, never mid-apply) ─────
-        if _ctrl.should_stop:
-            print(f"\n[Interrupt] Stopping after {i - 1} jobs processed.")
-            break
+    try:
+        async for job in stream_search_agent():
+            processed_total += 1
+            # ── Check for stop signal (between jobs, never mid-apply) ─────
+            if _ctrl.should_stop:
+                print(f"\n[Interrupt] Stopping after {processed_total - 1} jobs processed.")
+                break
 
-        # Clear any stale skip flag from the previous iteration
-        _ctrl.clear_skip()
-
-        kind = "[INTERN]" if job.is_internship else "[JOB]"
-        print(f"\n{'-' * 60}")
-        print(f"[{i}/{len(job_listings)}] {kind}: {job.company} | {job.job_title}")
-        print(f"{'-' * 60}")
-
-        if is_already_applied(job.apply_url):
-            print("[Main] Already processed. Skipping.")
-            skipped_count += 1
-            continue
-
-        # ── Check per-job skip signal ─────────────────────────────────
-        if _ctrl.should_skip:
-            print("[Main] Skipped via keyboard command.")
+            # Clear any stale skip flag from the previous iteration
             _ctrl.clear_skip()
-            skipped_count += 1
-            continue
 
-        initial_state: AgentState = {
-            "job_listings": job_listings,
-            "current_job": job,
-            "score_result": None,
-            "tailored_resume_path": resume_path,
-            "application_status": "pending",
-            "application_id": -1,
-            "resume_text": resume_text,
-            "resume_bullets": resume_bullets,
-        }
+            kind = "[INTERN]" if job.is_internship else "[JOB]"
+            print(f"\n{'-' * 60}")
+            print(f"[{processed_total}] {kind}: {job.company} | {job.job_title}")
+            print(f"{'-' * 60}")
 
-        try:
-            # Run pipeline — keyboard commands are checked before/after, not during
-            final_state = await app.ainvoke(initial_state)
-            status = final_state["application_status"]
-            print(f"[Main] -> {status.upper()}")
-
-            if status == "applied":
-                applied_count += 1
-            elif status == "skipped":
+            if is_already_applied(job.apply_url):
+                print("[Main] Already processed. Skipping.")
                 skipped_count += 1
-            elif status == "manual_apply":
-                manual_count += 1
-            else:
-                failed_count += 1
+                continue
 
-        except asyncio.CancelledError:
-            print("[Main] Job cancelled by interrupt.")
-            break
-        except Exception as exc:
-            print(f"[Main] Pipeline error: {exc}")
-            upsert_application(
-                job_title=job.job_title,
-                company=job.company,
-                platform=job.platform,
-                apply_url=job.apply_url,
-                status="failed",
-                notes=str(exc),
-            )
-            failed_count += 1
+            # ── Check per-job skip signal ─────────────────────────────────
+            if _ctrl.should_skip:
+                print("[Main] Skipped via keyboard command.")
+                _ctrl.clear_skip()
+                skipped_count += 1
+                continue
+
+            initial_state: AgentState = {
+                "job_listings": [job],  # Only holds current job in streaming mode
+                "current_job": job,
+                "score_result": None,
+                "tailored_resume_path": resume_path,
+                "application_status": "pending",
+                "application_id": -1,
+                "resume_text": resume_text,
+                "resume_bullets": resume_bullets,
+            }
+
+            try:
+                # Run pipeline — keyboard commands are checked before/after, not during
+                final_state = await app.ainvoke(initial_state)
+                status = final_state["application_status"]
+                print(f"[Main] -> {status.upper()}")
+
+                if status == "applied":
+                    applied_count += 1
+                elif status == "skipped":
+                    skipped_count += 1
+                elif status == "manual_apply":
+                    manual_count += 1
+                else:
+                    failed_count += 1
+
+            except asyncio.CancelledError:
+                print("[Main] Job cancelled by interrupt.")
+                break
+            except Exception as exc:
+                print(f"[Main] Pipeline error: {exc}")
+                upsert_application(
+                    job_title=job.job_title,
+                    company=job.company,
+                    platform=job.platform,
+                    apply_url=job.apply_url,
+                    status="failed",
+                    notes=str(exc),
+                )
+                failed_count += 1
+    finally:
+        await cleanup_shared_sessions()
 
     print("\n" + "=" * 62)
     print(f"  Session complete:")

@@ -73,13 +73,21 @@ async def call_llm(prompt: str, system: str = "") -> str:
         try:
             return await _call_gemini(prompt, system)
         except Exception as exc:
-            print(f"[LLM] Gemini failed ({exc}). Falling back to Groq/Ollama...")
+            exc_str = str(exc)
+            if "429" in exc_str or "quota" in exc_str.lower():
+                print(f"[LLM] Gemini rate limit/quota exceeded. Falling back to Groq/Ollama...")
+            else:
+                print(f"[LLM] Gemini failed ({exc_str}). Falling back to Groq/Ollama...")
 
     if settings.groq_api_key:
         try:
             return await _call_groq(prompt, system)
         except Exception as exc:
-            print(f"[LLM] Groq failed ({exc}). Falling back to Ollama...")
+            exc_str = str(exc)
+            if "429" in exc_str or "rate limit" in exc_str.lower() or "quota" in exc_str.lower():
+                print(f"[LLM] Groq rate limit exceeded. Falling back to Ollama...")
+            else:
+                print(f"[LLM] Groq failed ({exc_str}). Falling back to Ollama...")
 
     return await _call_ollama(prompt, system)
 
@@ -176,9 +184,10 @@ Instructions:
 - Do NOT start with "I" if a short phrase will do (e.g. "3 years" not "I have 3 years").
 - Do NOT add any explanation, preamble, markdown, or punctuation beyond the answer itself.
 - If the question asks to "choose one" from a list, reply with ONLY that option word-for-word.
+- If the question asks to choose 'Yes' or 'No', reply with ONLY 'Yes' or 'No'.
 - For numeric fields (salary, stipend, experience years), reply with ONLY the number.
 - For date fields, reply with a short phrase like "Immediately" or "2026-06-01".
-- If you cannot find a relevant answer in either source, reply with a single dash: -
+- If you cannot find a relevant answer in either source, make a highly plausible, safe guess based on context (e.g. "0" for expected salary, "Yes" for standard requirements, "None" for text). Never leave it blank or reply with a single dash.
 """
     try:
         raw = await call_llm(prompt)

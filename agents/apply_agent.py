@@ -36,6 +36,8 @@ from browser.session_manager import (
     get_persistent_context,
     is_linkedin_logged_in,
     is_naukri_logged_in,
+    SHARED_SESSIONS,
+    cleanup_shared_sessions,
 )
 from browser.linkedin_flow import (
     linkedin_login,
@@ -48,11 +50,7 @@ from memory.ledger import update_status
 from config import settings
 
 
-# ── Module-level session cache ────────────────────────────────────────────────
-# Key: "linkedin" | "naukri"
-# Value: { "pw": Playwright, "context": Context, "page": Page }
 # Both use *persistent* contexts (cookies saved to disk).
-_SESSIONS: Dict[str, Any] = {}
 
 
 async def _get_or_create_session(platform: str):
@@ -68,8 +66,8 @@ async def _get_or_create_session(platform: str):
     key = platform  # "linkedin" or "naukri"
 
     # ── Try to reuse an in-memory session ─────────────────────────────
-    if key in _SESSIONS:
-        sess = _SESSIONS[key]
+    if key in SHARED_SESSIONS:
+        sess = SHARED_SESSIONS[key]
         try:
             await sess["page"].evaluate("1 + 1")
             return sess["context"], sess["page"]
@@ -80,7 +78,7 @@ async def _get_or_create_session(platform: str):
                     await getattr(sess[target], method)()
                 except Exception:
                     pass
-            del _SESSIONS[key]
+            del SHARED_SESSIONS[key]
 
     # ── Spin up / reconnect ───────────────────────────────────────────
     if key == "linkedin":
@@ -113,35 +111,15 @@ async def _get_or_create_session(platform: str):
     else:
         raise ValueError(f"Unknown platform for session: {key}")
 
-    _SESSIONS[key] = {
+    SHARED_SESSIONS[key] = {
         "pw":      pw,
         "context": context,
         "page":    page,
     }
     return context, page
 
-
-async def cleanup_apply_sessions() -> None:
-    """
-    Close every cached browser session gracefully.
-
-    Closing the persistent context flushes all cookies and storage to disk
-    automatically — they will be reloaded on the next run.
-
-    Call this once after all jobs in the run have been processed.
-    """
-    for key in list(_SESSIONS.keys()):
-        sess = _SESSIONS.pop(key)
-        for target, method in [
-            ("context", "close"),   # persistent contexts
-            ("pw",      "stop"),
-        ]:
-            if target in sess:
-                try:
-                    await getattr(sess[target], method)()
-                except Exception:
-                    pass
-    print("[Apply] All browser sessions closed.")
+# Re-export cleanup for external callers if they still use it
+cleanup_apply_sessions = cleanup_shared_sessions
 
 
 # ── Public entry point ────────────────────────────────────────────────────────

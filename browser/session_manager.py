@@ -45,6 +45,25 @@ PLATFORM_DIRS = {
     "naukri":   SESSION_DIR / "naukri",
 }
 
+# ── Global Shared Sessions ────────────────────────────────────────────────────
+# Shared across search_agent and apply_agent to prevent user-data-dir locks.
+# Key: "linkedin" | "naukri"
+# Value: { "pw": Playwright, "context": Context, "page": Page }
+SHARED_SESSIONS = {}
+
+async def cleanup_shared_sessions() -> None:
+    """Close all shared persistent sessions cleanly."""
+    for key in list(SHARED_SESSIONS.keys()):
+        sess = SHARED_SESSIONS.pop(key)
+        for target, method in [("context", "close"), ("pw", "stop")]:
+            if target in sess:
+                try:
+                    await getattr(sess[target], method)()
+                except Exception:
+                    pass
+    print("[SessionManager] All browser sessions closed.")
+
+
 # ── Stealth script injected into every page ───────────────────────────────────
 _STEALTH_SCRIPT = """
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });

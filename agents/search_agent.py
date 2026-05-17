@@ -12,7 +12,7 @@ import asyncio
 import re
 import random
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, AsyncGenerator
 from urllib.parse import quote_plus
 
 from bs4 import BeautifulSoup
@@ -32,6 +32,7 @@ from browser.session_manager import (
     get_persistent_context,
     is_linkedin_logged_in,
     is_naukri_logged_in,
+    SHARED_SESSIONS,
 )
 from config import settings
 
@@ -75,14 +76,16 @@ def _detect_internship(title: str, jd_text: str) -> bool:
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
-async def run_search_agent() -> List[JobListing]:
+async def stream_search_agent() -> AsyncGenerator[JobListing, None]:
     """
     Scrape LinkedIn + Naukri for configured keywords (jobs + internships).
     Uses persistent browser contexts — login only fires when the saved session
     has expired or does not exist yet.
-    Returns deduplicated list capped at max_listings_per_run.
+    Yields listings as they are found for immediate processing (Strategy 3).
     """
-    all_listings: List[JobListing] = []
+    seen: set[str] = set()
+    total_yielded = 0
+    limit = settings.max_listings_per_run * 2
 
     li_pw = li_context = None
     nk_pw = nk_context = None
@@ -103,21 +106,34 @@ async def run_search_agent() -> List[JobListing]:
 
             handler = PopupHandler(li_page)
             await handler.start_auto_dismiss()
+            
+            # Setup shared session for apply_agent to use concurrently
+            if "linkedin" not in SHARED_SESSIONS:
+                idle_page = await li_context.new_page()
+                SHARED_SESSIONS["linkedin"] = {"pw": li_pw, "context": li_context, "page": idle_page}
 
             for kw in settings.keyword_list:
+                if total_yielded >= limit: break
                 listings = await _scrape_linkedin(li_page, kw, internship=False)
-                all_listings.extend(listings)
+                for lst in listings:
+                    if lst.apply_url not in seen:
+                        seen.add(lst.apply_url)
+                        total_yielded += 1
+                        yield lst
                 await random_delay(2.5, 5.0)
-                if len(all_listings) >= settings.max_listings_per_run:
-                    break
 
             for kw in settings.internship_keyword_list:
+                if total_yielded >= limit: break
                 listings = await _scrape_linkedin(li_page, kw, internship=True)
-                all_listings.extend(listings)
+                for lst in listings:
+                    if lst.apply_url not in seen:
+                        seen.add(lst.apply_url)
+                        total_yielded += 1
+                        yield lst
                 await random_delay(2.5, 5.0)
 
             await handler.stop_auto_dismiss()
-            await li_page.close()
+            # Do not close page or context here, as apply_agent might still be using them!
         else:
             print("[Search] Skipping LinkedIn (no credentials).")
 
@@ -136,51 +152,39 @@ async def run_search_agent() -> List[JobListing]:
 
             handler = PopupHandler(nk_page)
             await handler.start_auto_dismiss()
+            
+            if "naukri" not in SHARED_SESSIONS:
+                idle_page = await nk_context.new_page()
+                SHARED_SESSIONS["naukri"] = {"pw": nk_pw, "context": nk_context, "page": idle_page}
 
             for kw in settings.keyword_list:
+                if total_yielded >= limit: break
                 listings = await _scrape_naukri(nk_page, kw, internship=False)
-                all_listings.extend(listings)
+                for lst in listings:
+                    if lst.apply_url not in seen:
+                        seen.add(lst.apply_url)
+                        total_yielded += 1
+                        yield lst
                 await random_delay(2.5, 5.0)
 
             for kw in settings.internship_keyword_list:
+                if total_yielded >= limit: break
                 listings = await _scrape_naukri(nk_page, kw, internship=True)
-                all_listings.extend(listings)
+                for lst in listings:
+                    if lst.apply_url not in seen:
+                        seen.add(lst.apply_url)
+                        total_yielded += 1
+                        yield lst
                 await random_delay(2.5, 5.0)
 
             await handler.stop_auto_dismiss()
-            await nk_page.close()
         else:
             print("[Search] Skipping Naukri (no credentials).")
 
-    finally:
-        # Close persistent contexts — this flushes cookies to disk
-        for ctx, pw in [(li_context, li_pw), (nk_context, nk_pw)]:
-            if ctx is not None:
-                try:
-                    await ctx.close()
-                except Exception:
-                    pass
-            if pw is not None:
-                try:
-                    await pw.stop()
-                except Exception:
-                    pass
+    except Exception as exc:
+        print(f"[Search] Error in search stream: {exc}")
 
-    # Deduplicate by URL
-    seen: set[str] = set()
-    unique: List[JobListing] = []
-    for lst in all_listings:
-        if lst.apply_url not in seen:
-            seen.add(lst.apply_url)
-            unique.append(lst)
 
-    internships = [j for j in unique if j.is_internship]
-    jobs = [j for j in unique if not j.is_internship]
-    print(
-        f"[Search] Found {len(unique)} unique listings: "
-        f"{len(jobs)} jobs + {len(internships)} internships."
-    )
-    return unique[: settings.max_listings_per_run * 2]   # give scorer more to work with
 
 
 

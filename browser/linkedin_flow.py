@@ -873,17 +873,39 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> int:
         except Exception:
             pass
 
-    # ── 5. Standalone checkboxes (terms / consent / follow) ───────────
+    # ── 5. Standalone checkboxes (terms / consent / follow / others) ──
     for cb in await scope.query_selector_all("input[type='checkbox']:not([disabled])"):
         try:
-            if not await cb.is_visible() or await cb.is_checked():
+            if not await cb.is_visible():
                 continue
-            label = (await _get_field_label(page, cb)).lower()
-            if any(kw in label for kw in (
-                "agree", "consent", "terms", "privacy", "authoriz",
-                "confirm", "acknowledge", "follow",
-            )):
+            label_text = await _get_field_label(page, cb)
+            if not label_text:
+                continue
+            label = label_text.lower()
+            
+            saved = get_answer(label_text)
+            if not saved:
+                if any(kw in label for kw in (
+                    "agree", "consent", "terms", "privacy", "authoriz",
+                    "confirm", "acknowledge", "follow",
+                )):
+                    saved = "Yes"
+                else:
+                    ans = await llm_answer_fn(
+                        f"Checkbox question: '{label_text}'. Should I check it? (Reply 'Yes' or 'No' only)", resume_text
+                    )
+                    saved = "Yes" if (ans and "yes" in ans.lower() and "no" not in ans.lower()) else "No"
+                save_answer(label_text, saved)
+
+            is_checked = await cb.is_checked()
+            should_be_checked = saved and "yes" in saved.lower()
+
+            if should_be_checked and not is_checked:
                 await cb.check()
+                filled_count += 1
+                await random_delay(0.2, 0.5)
+            elif not should_be_checked and is_checked:
+                await cb.uncheck()
                 filled_count += 1
                 await random_delay(0.2, 0.5)
         except Exception:
