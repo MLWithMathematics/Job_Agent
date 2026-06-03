@@ -94,6 +94,10 @@ class Settings(BaseSettings):
     work_authorization: str = Field(default="Yes")
     gender: str = Field(default="")
     nationality: str = Field(default="")
+    phone_country_code: str = Field(
+        default="India (+91)",
+        description="Phone country code as shown in LinkedIn's dropdown (e.g. 'India (+91)', 'United States (+1)')",
+    )
 
     # ── Database ──────────────────────────────────────────────────────
     db_path: str = Field(default="memory/ledger.db")

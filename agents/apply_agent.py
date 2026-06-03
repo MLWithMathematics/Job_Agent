@@ -156,8 +156,13 @@ async def run_apply_agent(
         )
         return "manual_apply"
 
-    async def llm_answer_fn(question: str, res_text: str) -> str:
-        return await dynamic_qa(question, res_text)
+    async def llm_answer_fn(question: str, res_text: str, job_context: str = "") -> str:
+        return await dynamic_qa(question, res_text, job_context)
+
+    # Build job context string for role-aware answers
+    job_context = f"Role: {job.job_title} at {job.company}"
+    if hasattr(job, "jd_text") and job.jd_text:
+        job_context += f"\n{job.jd_text[:1200]}"
 
     try:
         context, page = await _get_or_create_session(job.platform)
@@ -170,6 +175,8 @@ async def run_apply_agent(
                 tailored_resume_path=tailored_resume_path,
                 resume_text=resume_text,
                 llm_answer_fn=llm_answer_fn,
+                job_title=job.job_title,
+                jd_text=getattr(job, "jd_text", ""),
             )
             if success:
                 update_status(job.apply_url, "applied")

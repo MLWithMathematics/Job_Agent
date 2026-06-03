@@ -1,0 +1,1989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Agent System - Interactive Architecture Map</title>
+  <!-- Google Fonts: Space Grotesk & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  
+  <style>
+    /* ── CORE STYLING & VARIABLES ─────────────────────────────────────────── */
+    :root {
+      --bg-dark: #0a0b0d;
+      --bg-card: rgba(22, 25, 30, 0.65);
+      --bg-sidebar: rgba(14, 16, 20, 0.85);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(0, 242, 254, 0.15);
+      
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      
+      /* Neon Accents */
+      --color-blue: #00f2fe;
+      --color-purple: #8b5cf6;
+      --color-green: #10b981;
+      --color-red: #f43f5e;
+      --color-orange: #f59e0b;
+      --color-cyan: #06b6d4;
+      --color-indigo: #6366f1;
+
+      --glow-blue: 0 0 15px rgba(0, 242, 254, 0.4);
+      --glow-purple: 0 0 15px rgba(139, 92, 246, 0.4);
+      --glow-green: 0 0 15px rgba(16, 185, 129, 0.4);
+      --glow-red: 0 0 15px rgba(244, 63, 94, 0.4);
+      --glow-orange: 0 0 15px rgba(245, 158, 11, 0.4);
+      --glow-cyan: 0 0 15px rgba(6, 182, 212, 0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(rgba(0, 242, 254, 0.03) 1.5px, transparent 0),
+        radial-gradient(rgba(139, 92, 246, 0.02) 2px, transparent 0);
+      background-size: 32px 32px;
+      background-position: 0 0, 16px 16px;
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── HEADER ───────────────────────────────────────────────────────────── */
+    header {
+      background: rgba(10, 11, 13, 0.8);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--color-blue), var(--color-purple));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      color: #000;
+      box-shadow: var(--glow-blue);
+    }
+
+    .brand-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+      background: linear-gradient(90deg, #fff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .system-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      padding: 6px 14px;
+      border-radius: 30px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-green);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--color-green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--color-green);
+      animation: pulse 2s infinite;
+    }
+
+    /* ── TABS ─────────────────────────────────────────────────────────────── */
+    .tabs-nav {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px;
+      background: rgba(15, 17, 21, 0.4);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .tab-btn {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tab-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.15), rgba(139, 92, 246, 0.15));
+      border-color: var(--color-blue);
+      color: #fff;
+      box-shadow: 0 0 15px rgba(0, 242, 254, 0.1);
+    }
+
+    /* ── MAIN WORKSPACE ───────────────────────────────────────────────────── */
+    .workspace-container {
+      flex: 1;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tab-panel {
+      flex: 1;
+      display: none;
+      padding: 24px;
+      overflow-y: auto;
+      height: calc(100vh - 145px);
+    }
+
+    .tab-panel.active {
+      display: flex;
+    }
+
+    /* ── TAB 1: FLOWCHART STYLES ──────────────────────────────────────────── */
+    .flowchart-wrapper {
+      flex: 1;
+      display: flex;
+      gap: 24px;
+      position: relative;
+    }
+
+    .flowchart-canvas {
+      flex: 1;
+      position: relative;
+      background: rgba(14, 16, 20, 0.3);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      overflow: auto;
+      padding: 40px;
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      gap: 60px;
+      min-width: 1000px;
+    }
+
+    /* SVG Overlay */
+    #flowchart-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .connector-line {
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+      transition: all 0.3s ease;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    }
+
+    /* Connection Line Colors */
+    .connector-line.blue {
+      stroke: rgba(0, 242, 254, 0.25);
+      stroke-dasharray: 6 4;
+      animation: dash-flow 25s linear infinite;
+    }
+    .connector-line.green {
+      stroke: rgba(16, 185, 129, 0.3);
+      stroke-dasharray: 6 4;
+      animation: dash-flow 20s linear infinite;
+    }
+    .connector-line.red {
+      stroke: rgba(244, 63, 94, 0.3);
+      stroke-dasharray: 6 4;
+      animation: dash-flow 20s linear infinite;
+    }
+    .connector-line.orange {
+      stroke: rgba(245, 158, 11, 0.3);
+      stroke-dasharray: 6 4;
+      animation: dash-flow 20s linear infinite;
+    }
+    .connector-line.purple {
+      stroke: rgba(139, 92, 246, 0.25);
+      stroke-dasharray: 4 6;
+      animation: dash-flow 35s linear infinite;
+    }
+    .connector-line.cyan {
+      stroke: rgba(6, 182, 212, 0.25);
+      stroke-dasharray: 6 4;
+      animation: dash-flow 25s linear infinite;
+    }
+    .connector-line.dashed {
+      stroke: rgba(148, 163, 184, 0.2);
+      stroke-dasharray: 5 8;
+      animation: dash-flow 40s linear default;
+    }
+
+    /* Highlighted Path state */
+    .connector-line.active {
+      stroke-width: 4;
+      opacity: 1;
+    }
+    .connector-line.blue.active { stroke: var(--color-blue); filter: drop-shadow(0 0 6px var(--color-blue)); }
+    .connector-line.green.active { stroke: var(--color-green); filter: drop-shadow(0 0 6px var(--color-green)); }
+    .connector-line.red.active { stroke: var(--color-red); filter: drop-shadow(0 0 6px var(--color-red)); }
+    .connector-line.orange.active { stroke: var(--color-orange); filter: drop-shadow(0 0 6px var(--color-orange)); }
+    .connector-line.purple.active { stroke: var(--color-purple); filter: drop-shadow(0 0 6px var(--color-purple)); }
+    .connector-line.cyan.active { stroke: var(--color-cyan); filter: drop-shadow(0 0 6px var(--color-cyan)); }
+
+    /* Flowchart Columns */
+    .flow-column {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      z-index: 2;
+      position: relative;
+    }
+
+    /* Interactive Node Card */
+    .node-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px 20px;
+      width: 220px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    .node-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 12px;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.05), transparent);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    .node-card:hover {
+      transform: translateY(-4px) scale(1.02);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Highlight Accents on Node Cards */
+    .node-card.accent-blue { border-left: 4px solid var(--color-blue); }
+    .node-card.accent-purple { border-left: 4px solid var(--color-purple); }
+    .node-card.accent-green { border-left: 4px solid var(--color-green); }
+    .node-card.accent-red { border-left: 4px solid var(--color-red); }
+    .node-card.accent-orange { border-left: 4px solid var(--color-orange); }
+    .node-card.accent-cyan { border-left: 4px solid var(--color-cyan); }
+    .node-card.accent-indigo { border-left: 4px solid var(--color-indigo); }
+
+    /* Active Highlight States */
+    .node-card.active.accent-blue { border-color: var(--color-blue); box-shadow: var(--glow-blue); }
+    .node-card.active.accent-purple { border-color: var(--color-purple); box-shadow: var(--glow-purple); }
+    .node-card.active.accent-green { border-color: var(--color-green); box-shadow: var(--glow-green); }
+    .node-card.active.accent-red { border-color: var(--color-red); box-shadow: var(--glow-red); }
+    .node-card.active.accent-orange { border-color: var(--color-orange); box-shadow: var(--glow-orange); }
+    .node-card.active.accent-cyan { border-color: var(--color-cyan); box-shadow: var(--glow-cyan); }
+    .node-card.active.accent-indigo { border-color: var(--color-indigo); box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); }
+
+    .node-category {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+    .node-card.accent-blue .node-category { color: var(--color-blue); }
+    .node-card.accent-purple .node-category { color: var(--color-purple); }
+    .node-card.accent-green .node-category { color: var(--color-green); }
+    .node-card.accent-red .node-category { color: var(--color-red); }
+    .node-card.accent-orange .node-category { color: var(--color-orange); }
+    .node-card.accent-cyan .node-category { color: var(--color-cyan); }
+    .node-card.accent-indigo .node-category { color: var(--color-indigo); }
+
+    .node-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #fff;
+    }
+
+    .node-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* ── DETAILED INSPECTOR PANEL ────────────────────────────────────────── */
+    .inspector-panel {
+      width: 380px;
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+      box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+    }
+
+    .inspector-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .inspector-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .inspector-badge {
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-blue { background: rgba(0, 242, 254, 0.1); color: var(--color-blue); border: 1px solid rgba(0, 242, 254, 0.2); }
+    .badge-purple { background: rgba(139, 92, 246, 0.1); color: var(--color-purple); border: 1px solid rgba(139, 92, 246, 0.2); }
+    .badge-green { background: rgba(16, 185, 129, 0.1); color: var(--color-green); border: 1px solid rgba(16, 185, 129, 0.2); }
+    .badge-red { background: rgba(244, 63, 94, 0.1); color: var(--color-red); border: 1px solid rgba(244, 63, 94, 0.2); }
+    .badge-orange { background: rgba(245, 158, 11, 0.1); color: var(--color-orange); border: 1px solid rgba(245, 158, 11, 0.2); }
+    .badge-cyan { background: rgba(6, 182, 212, 0.1); color: var(--color-cyan); border: 1px solid rgba(6, 182, 212, 0.2); }
+    .badge-indigo { background: rgba(99, 102, 241, 0.1); color: var(--color-indigo); border: 1px solid rgba(99, 102, 241, 0.2); }
+
+    .inspector-body {
+      padding: 24px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .inspector-placeholder {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      color: var(--text-muted);
+      padding: 40px;
+    }
+
+    .inspector-placeholder-icon {
+      font-size: 40px;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+
+    .inspector-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .file-path {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: 'Fira Code', monospace;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .file-link {
+      color: var(--color-blue);
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    .file-link:hover {
+      color: #fff;
+      text-decoration: underline;
+    }
+
+    .inspector-desc {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #cbd5e1;
+    }
+
+    .inspector-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .list-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .item-label {
+      font-family: 'Fira Code', monospace;
+      color: var(--text-main);
+    }
+
+    .item-value {
+      color: var(--text-muted);
+    }
+
+    /* ── TAB 2: ARCHITECTURE BLUEPRINT STYLES ──────────────────────────────── */
+    .blueprint-wrapper {
+      flex: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .blueprint-layer {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .layer-header {
+      padding: 16px 24px;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .layer-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .layer-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .layer-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .layer-badge {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+    }
+
+    .layer-body {
+      padding: 20px 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .blueprint-card {
+      background: rgba(255, 255, 255, 0.015);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 8px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .blueprint-card:hover {
+      border-color: rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .bp-card-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .bp-card-title::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--color-blue);
+    }
+
+    .blueprint-layer:nth-child(2) .bp-card-title::before { background-color: var(--color-purple); }
+    .blueprint-layer:nth-child(3) .bp-card-title::before { background-color: var(--color-cyan); }
+    .blueprint-layer:nth-child(4) .bp-card-title::before { background-color: var(--color-green); }
+
+    .bp-card-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* ── TAB 3: DATABASE SCHEMA STYLES ────────────────────────────────────── */
+    .schema-wrapper {
+      flex: 1;
+      max-width: 1000px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .db-section-header {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-left: 4px solid var(--color-blue);
+      padding-left: 12px;
+    }
+
+    .table-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .table-header {
+      padding: 16px 24px;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .table-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .table-details {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 12px 24px;
+      background: rgba(255, 255, 255, 0.01);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    td {
+      padding: 14px 24px;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: #e2e8f0;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .column-name {
+      font-family: 'Fira Code', monospace;
+      font-weight: 500;
+      color: #fff;
+    }
+
+    .column-type {
+      font-family: 'Fira Code', monospace;
+      color: var(--color-cyan);
+      font-size: 12px;
+    }
+
+    .key-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .key-pk { background: rgba(245, 158, 11, 0.1); color: var(--color-orange); border: 1px solid rgba(245, 158, 11, 0.2); }
+    .key-fk { background: rgba(139, 92, 246, 0.1); color: var(--color-purple); border: 1px solid rgba(139, 92, 246, 0.2); }
+    .key-uq { background: rgba(0, 242, 254, 0.1); color: var(--color-blue); border: 1px solid rgba(0, 242, 254, 0.2); }
+
+    /* Seeded defaults grid */
+    .form-memory-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .form-memory-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .fm-key {
+      font-family: 'Fira Code', monospace;
+      font-size: 13px;
+      color: var(--color-purple);
+      font-weight: 500;
+    }
+
+    .fm-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* ── TAB 4: FILE NAVIGATOR ────────────────────────────────────────────── */
+    .files-wrapper {
+      flex: 1;
+      max-width: 1000px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 24px;
+      height: 100%;
+    }
+
+    .files-sidebar {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .file-dir-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin: 8px 0 4px 8px;
+    }
+
+    .file-nav-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: #cbd5e1;
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    .file-nav-btn:hover {
+      background: rgba(255, 255, 255, 0.03);
+      color: #fff;
+    }
+
+    .file-nav-btn.active {
+      background: rgba(0, 242, 254, 0.08);
+      border-color: rgba(0, 242, 254, 0.2);
+      color: var(--color-blue);
+      font-weight: 500;
+    }
+
+    .file-content-pane {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+    }
+
+    .file-pane-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .code-structure-table {
+      margin-top: 10px;
+    }
+
+    /* ── ANIMATIONS ───────────────────────────────────────────────────────── */
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+      }
+      70% {
+        box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+      }
+    }
+
+    @keyframes dash-flow {
+      to {
+        stroke-dashoffset: -1000;
+      }
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .flowchart-wrapper {
+        flex-direction: column;
+      }
+      .inspector-panel {
+        width: 100%;
+        height: 350px;
+        box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+      }
+      .tab-panel {
+        height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">JA</div>
+      <div class="brand-title">Job Agent System — Architectural Working Map</div>
+    </div>
+    <div class="system-status">
+      <div class="status-dot"></div>
+      System Ready (v3.0.0-patch)
+    </div>
+  </header>
+
+  <!-- NAVIGATION TABS -->
+  <div class="tabs-nav">
+    <button class="tab-btn active" data-tab="tab-flowchart">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      Interactive Pipeline Flow
+    </button>
+    <button class="tab-btn" data-tab="tab-blueprint">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+      Layered Blueprint
+    </button>
+    <button class="tab-btn" data-tab="tab-schema">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+      Database & Form Memory
+    </button>
+    <button class="tab-btn" data-tab="tab-files">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Codebase Navigator
+    </button>
+  </div>
+
+  <!-- WORKSPACE -->
+  <div class="workspace-container">
+
+    <!-- TAB 1: INTERACTIVE FLOWCHART -->
+    <div id="tab-flowchart" class="tab-panel active">
+      <div class="flowchart-wrapper">
+        <div class="flowchart-canvas" id="flowchart-container">
+          
+          <svg id="flowchart-svg">
+            <defs>
+              <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--color-blue)"/>
+              </marker>
+              <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--color-green)"/>
+              </marker>
+              <marker id="arrow-red" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--color-red)"/>
+              </marker>
+              <marker id="arrow-orange" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--color-orange)"/>
+              </marker>
+              <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--color-purple)"/>
+              </marker>
+              <marker id="arrow-cyan" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--color-cyan)"/>
+              </marker>
+            </defs>
+          </svg>
+
+          <!-- Column 1: Boot & Intake -->
+          <div class="flow-column">
+            <div class="node-card accent-blue" id="node-init" onclick="inspectNode('init')">
+              <div class="node-category">Startup</div>
+              <div class="node-title">Control Center</div>
+              <div class="node-subtitle">Initializes signals & keyboard commands. Controls execution flow.</div>
+            </div>
+            
+            <div class="node-card accent-blue" id="node-resume" onclick="inspectNode('resume')">
+              <div class="node-category">Intake</div>
+              <div class="node-title">Resume Loader</div>
+              <div class="node-subtitle">Detects resume format (.pdf, .docx, .tex) & parses bullet points.</div>
+            </div>
+          </div>
+
+          <!-- Column 2: Discovery -->
+          <div class="flow-column">
+            <div class="node-card accent-indigo" id="node-search" onclick="inspectNode('search')">
+              <div class="node-category">Discovery</div>
+              <div class="node-title">Search Agent</div>
+              <div class="node-subtitle">Streams new job & internship listings from LinkedIn & Naukri.</div>
+            </div>
+            
+            <div class="node-card accent-purple" id="node-popup" onclick="inspectNode('popup')">
+              <div class="node-category">Daemon</div>
+              <div class="node-title">Popup Handler</div>
+              <div class="node-subtitle">Dismisses overlay notifications, dialogs, and native alerts.</div>
+            </div>
+
+            <div class="node-card accent-cyan" id="node-stealth" onclick="inspectNode('stealth')">
+              <div class="node-category">Automation</div>
+              <div class="node-title">Stealth Simulator</div>
+              <div class="node-subtitle">Emulates human clicks, scrolls, typing delays to avoid bots.</div>
+            </div>
+          </div>
+
+          <!-- Column 3: Orchestrator Core (LangGraph) -->
+          <div class="flow-column">
+            <div class="node-card accent-purple" id="node-score" onclick="inspectNode('score')">
+              <div class="node-category">LangGraph Node</div>
+              <div class="node-title">LLM Match Scorer</div>
+              <div class="node-subtitle">Rates resume match 0-100 against JD. Skipped or approved.</div>
+            </div>
+
+            <div class="node-card accent-purple" id="node-tailor" onclick="inspectNode('tailor')">
+              <div class="node-category">LangGraph Node</div>
+              <div class="node-title">Resume Tailorer</div>
+              <div class="node-subtitle">Rewrites bullet points per JD and compiles a tailored resume file.</div>
+            </div>
+
+            <div class="node-card accent-purple" id="node-apply" onclick="inspectNode('apply')">
+              <div class="node-category">LangGraph Node</div>
+              <div class="node-title">Application Agent</div>
+              <div class="node-subtitle">Fills forms and submits resumes dynamically on portals.</div>
+            </div>
+
+            <div class="node-card accent-purple" id="node-outreach" onclick="inspectNode('outreach')">
+              <div class="node-category">LangGraph Node</div>
+              <div class="node-title">Recruiter Outreach</div>
+              <div class="node-subtitle">Sends automated LinkedIn connection requests & custom messages.</div>
+            </div>
+          </div>
+
+          <!-- Column 4: Exit & Output -->
+          <div class="flow-column">
+            <div class="node-card accent-red" id="node-skip" onclick="inspectNode('skip')">
+              <div class="node-category">Endpoint</div>
+              <div class="node-title">Log Skip</div>
+              <div class="node-subtitle">Handles low score profiles and records them as skipped.</div>
+            </div>
+
+            <div class="node-card accent-green" id="node-result" onclick="inspectNode('result')">
+              <div class="node-category">Endpoint</div>
+              <div class="node-title">Log Result</div>
+              <div class="node-subtitle">Records applied, failed, or manual applications.</div>
+            </div>
+          </div>
+
+          <!-- Column 5: Ledger Database -->
+          <div class="flow-column">
+            <div class="node-card accent-indigo" id="node-ledger" onclick="inspectNode('ledger')">
+              <div class="node-category">Persistence</div>
+              <div class="node-title">Ledger & Cache</div>
+              <div class="node-subtitle">SQLite ledger & Form memory. Stores statuses & answers.</div>
+            </div>
+            
+            <div class="node-card accent-orange" id="node-dashboard" onclick="inspectNode('dashboard')">
+              <div class="node-category">Analytics</div>
+              <div class="node-title">Streamlit UI</div>
+              <div class="node-subtitle">Interactive visualization dashboard of application status.</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- INSPECTOR SIDEBAR -->
+        <div class="inspector-panel" id="inspector-panel">
+          <div class="inspector-header">
+            <span class="inspector-title" id="ins-title">System Inspector</span>
+            <span class="inspector-badge badge-blue" id="ins-badge">System</span>
+          </div>
+          <div class="inspector-body" id="ins-body">
+            <div class="inspector-placeholder">
+              <div class="inspector-placeholder-icon">🔍</div>
+              <p>Click on any node in the flowchart to view detailed specifications, file paths, parameters, and code structure.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: SYSTEM BLUEPRINT -->
+    <div id="tab-blueprint" class="tab-panel">
+      <div class="blueprint-wrapper">
+        
+        <!-- Layer 1 -->
+        <div class="blueprint-layer">
+          <div class="layer-header">
+            <div class="layer-title-group">
+              <div class="layer-num">1</div>
+              <div class="layer-title">Interface & Controller Layer</div>
+            </div>
+            <div class="layer-badge">Human Control</div>
+          </div>
+          <div class="layer-body">
+            <div class="blueprint-card">
+              <div class="bp-card-title">Streamlit Dashboard</div>
+              <div class="bp-card-desc">Provides graphical statistics, logs, and interactive controls to trigger job searches or manual applications.</div>
+            </div>
+            <div class="blueprint-card">
+              <div class="bp-card-title">Signal Interceptor</div>
+              <div class="bp-card-desc">Safe SIGINT controller that halts execution between applications rather than abruptly mid-apply.</div>
+            </div>
+            <div class="blueprint-card">
+              <div class="bp-card-title">Keyboard Commands</div>
+              <div class="bp-card-desc">Parallel thread listening to terminal keys like [S]kip, [Q]uit, or [P]rint status in real-time.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Layer 2 -->
+        <div class="blueprint-layer">
+          <div class="layer-header">
+            <div class="layer-title-group">
+              <div class="layer-num">2</div>
+              <div class="layer-title">Agent Coordination Layer (LangGraph Engine)</div>
+            </div>
+            <div class="layer-badge">Orchestration</div>
+          </div>
+          <div class="layer-body">
+            <div class="blueprint-card">
+              <div class="bp-card-title">Discovery & Search</div>
+              <div class="bp-card-desc">Streams jobs from search queries and passes raw listings sequentially into the pipeline state.</div>
+            </div>
+            <div class="blueprint-card">
+              <div class="bp-card-title">LLM Match Evaluator</div>
+              <div class="bp-card-desc">Extracts job descriptions, runs keyword intersection and logical evaluation to issue match scores.</div>
+            </div>
+            <div class="blueprint-card">
+              <div class="bp-card-title">Resume Customizer</div>
+              <div class="bp-card-desc">Rewrites specific resume points to map exactly to JD, rebuilding LaTeX, Docx, or PDF.</div>
+            </div>
+            <div class="blueprint-card">
+              <div class="bp-card-title">Recruiter Outreach</div>
+              <div class="bp-card-desc">Constructs 300-char non-salesy messages, finds recruiters on LinkedIn, and delivers messages with connection invites.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Layer 3 -->
+        <div class="blueprint-layer">
+          <div class="layer-header">
+            <div class="layer-title-group">
+              <div class="layer-num">3</div>
+              <div class="layer-title">Browser & Automation Subsystems</div>
+            </div>
+            <div class="layer-badge">Infrastructure</div>
+          </div>
+          <div class="layer-body">
+            <div class="blueprint-card">
+              <div class="bp-card-title">Session Manager</div>
+              <div class="bp-card-desc">Caches persistent browser profiles, cookies, and tokens per platform to bypass redundant log-ins.</div>
+            </div>
+            <div class="blueprint-card">
+              <div class="bp-card-title">Stealth Engine</div>
+              <div class="bp-card-desc">Spoofs navigator signatures, scrolls realistically, uses human clicking paths, and adds organic pauses.</div>
+            </div>
+            <div class="blueprint-card">
+              <div class="bp-card-title">Popup Sweeper Daemon</div>
+              <div class="bp-card-desc">Runs concurrently to click-away dialog boxes, cookies overlays, and chat bubbles that obstruct actions.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Layer 4 -->
+        <div class="blueprint-layer">
+          <div class="layer-header">
+            <div class="layer-title-group">
+              <div class="layer-num">4</div>
+              <div class="layer-title">Data & Inference Layer</div>
+            </div>
+            <div class="layer-badge">Persistence & LLM</div>
+          </div>
+          <div class="layer-body">
+            <div class="blueprint-card">
+              <div class="bp-card-title">SQLite Ledger DB</div>
+              <div class="bp-card-desc">Keeps track of application attempts, urls, matching results, dates, and generated resumes.</div>
+            </div>
+            <div class="blueprint-card">
+              <div class="bp-card-title">Form Memory Q&A</div>
+              <div class="bp-card-desc">Locally maps form label substrings to answers using fuzzy string matching to auto-populate portals.</div>
+            </div>
+            <div class="blueprint-card">
+              <div class="bp-card-title">LLM client router</div>
+              <div class="bp-card-desc">Wrapper fallback system routing prompts to Gemini, Groq (Llama), or local Ollama depending on quotas.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB 3: DATABASE SCHEMA -->
+    <div id="tab-schema" class="tab-panel">
+      <div class="schema-wrapper">
+        
+        <!-- Table 1: applications -->
+        <div>
+          <div class="db-section-header">SQLite Table: applications</div>
+          <p style="color: var(--text-muted); font-size: 13px; margin: 8px 0 16px 16px;">Tracks the state of all parsed, skipped, and completed applications.</p>
+          <div class="table-container">
+            <div class="table-header">
+              <span class="table-title">applications</span>
+              <span class="table-details">Main Ledger DB</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Field Name</th>
+                  <th>Type</th>
+                  <th>Constraints</th>
+                  <th>Description / Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="column-name">id</td>
+                  <td class="column-type">INTEGER</td>
+                  <td><span class="key-badge key-pk">PRIMARY KEY AUTOINCREMENT</span></td>
+                  <td>Unique internal identifier for the application record.</td>
+                </tr>
+                <tr>
+                  <td class="column-name">job_title</td>
+                  <td class="column-type">TEXT</td>
+                  <td>-</td>
+                  <td>Name of the role scraped from the platform card.</td>
+                </tr>
+                <tr>
+                  <td class="column-name">company</td>
+                  <td class="column-type">TEXT</td>
+                  <td>-</td>
+                  <td>Name of the employer company.</td>
+                </tr>
+                <tr>
+                  <td class="column-name">platform</td>
+                  <td class="column-type">TEXT</td>
+                  <td>-</td>
+                  <td>Job portal source ('linkedin' or 'naukri').</td>
+                </tr>
+                <tr>
+                  <td class="column-name">apply_url</td>
+                  <td class="column-type">TEXT</td>
+                  <td><span class="key-badge key-uq">UNIQUE</span></td>
+                  <td>The unique link to the job post. Prevents processing duplicates.</td>
+                </tr>
+                <tr>
+                  <td class="column-name">apply_type</td>
+                  <td class="column-type">TEXT</td>
+                  <td>DEFAULT 'easy_apply'</td>
+                  <td>Indicates submission method ('easy_apply' or 'external').</td>
+                </tr>
+                <tr>
+                  <td class="column-name">match_score</td>
+                  <td class="column-type">INTEGER</td>
+                  <td>-</td>
+                  <td>Matching rating returned by LLM Scorer (0-100).</td>
+                </tr>
+                <tr>
+                  <td class="column-name">status</td>
+                  <td class="column-type">TEXT</td>
+                  <td>DEFAULT 'pending'</td>
+                  <td>Current state ('pending', 'applied', 'skipped', 'failed', 'manual_apply').</td>
+                </tr>
+                <tr>
+                  <td class="column-name">resume_path</td>
+                  <td class="column-type">TEXT</td>
+                  <td>-</td>
+                  <td>Local file path to the customized tailored resume document.</td>
+                </tr>
+                <tr>
+                  <td class="column-name">applied_at</td>
+                  <td class="column-type">TIMESTAMP</td>
+                  <td>DEFAULT CURRENT_TIMESTAMP</td>
+                  <td>Datetime record of creation or last update.</td>
+                </tr>
+                <tr>
+                  <td class="column-name">outreach_sent</td>
+                  <td class="column-type">BOOLEAN</td>
+                  <td>DEFAULT 0</td>
+                  <td>Boolean flag showing whether LinkedIn recruiter message succeeded.</td>
+                </tr>
+                <tr>
+                  <td class="column-name">notes</td>
+                  <td class="column-type">TEXT</td>
+                  <td>-</td>
+                  <td>Pipeline execution logs, errors, or LLM evaluation reasoning.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Table 2: outreach_log -->
+        <div>
+          <div class="db-section-header">SQLite Table: outreach_log</div>
+          <p style="color: var(--text-muted); font-size: 13px; margin: 8px 0 16px 16px;">Logs specific recruiter contact notes dispatched by the outreach agent.</p>
+          <div class="table-container">
+            <div class="table-header">
+              <span class="table-title">outreach_log</span>
+              <span class="table-details">Outreach Tracking</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Field Name</th>
+                  <th>Type</th>
+                  <th>Constraints</th>
+                  <th>Description / Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="column-name">id</td>
+                  <td class="column-type">INTEGER</td>
+                  <td><span class="key-badge key-pk">PRIMARY KEY AUTOINCREMENT</span></td>
+                  <td>Unique outreach transaction row id.</td>
+                </tr>
+                <tr>
+                  <td class="column-name">application_id</td>
+                  <td class="column-type">INTEGER</td>
+                  <td><span class="key-badge key-fk">FOREIGN KEY -> applications(id)</span></td>
+                  <td>References the parent job application database entry.</td>
+                </tr>
+                <tr>
+                  <td class="column-name">recruiter_name</td>
+                  <td class="column-type">TEXT</td>
+                  <td>-</td>
+                  <td>Name of the recruiter targeted on LinkedIn.</td>
+                </tr>
+                <tr>
+                  <td class="column-name">company</td>
+                  <td class="column-type">TEXT</td>
+                  <td>-</td>
+                  <td>Employer company associated with the recruiter.</td>
+                </tr>
+                <tr>
+                  <td class="column-name">message_text</td>
+                  <td class="column-type">TEXT</td>
+                  <td>-</td>
+                  <td>The custom generated message sent within the connection invite.</td>
+                </tr>
+                <tr>
+                  <td class="column-name">sent_at</td>
+                  <td class="column-type">TIMESTAMP</td>
+                  <td>DEFAULT CURRENT_TIMESTAMP</td>
+                  <td>Date and time the invite was dispatched.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Section 3: Form Memory -->
+        <div>
+          <div class="db-section-header">Auto-fill Form Memory Cache</div>
+          <p style="color: var(--text-muted); font-size: 13px; margin: 8px 0 16px 16px;">Fuzzy matches form labels to pre-seeded properties or profile_qa.yaml mappings to speed up inputs.</p>
+          <div class="form-memory-grid">
+            <div class="form-memory-card">
+              <span class="fm-key">phone / mobile</span>
+              <span class="fm-desc">Pre-mapped telephone fields to settings.phone values.</span>
+            </div>
+            <div class="form-memory-card">
+              <span class="fm-key">expected ctc / expected salary</span>
+              <span class="fm-desc">Fills out portal salary expectation fields based on configuration.</span>
+            </div>
+            <div class="form-memory-card">
+              <span class="fm-key">notice period</span>
+              <span class="fm-desc">Populates job switch availability (e.g., immediate, 30 days).</span>
+            </div>
+            <div class="form-memory-card">
+              <span class="fm-key">are you authorized to work</span>
+              <span class="fm-desc">Handles standard yes/no legal visa answers.</span>
+            </div>
+            <div class="form-memory-card">
+              <span class="fm-key">degree / highest qualification</span>
+              <span class="fm-desc">Automatically inputs college graduation qualifications.</span>
+            </div>
+            <div class="form-memory-card">
+              <span class="fm-key">willing to relocate / relocation</span>
+              <span class="fm-desc">Fills geographic flexibility options as defined by settings.</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB 4: CODEBASE NAVIGATOR -->
+    <div id="tab-files" class="tab-panel">
+      <div class="files-wrapper">
+        
+        <!-- Files Sidebar -->
+        <div class="files-sidebar">
+          <div class="file-dir-title">Root</div>
+          <button class="file-nav-btn active" data-file="main_py">main.py</button>
+          <button class="file-nav-btn" data-file="config_py">config.py</button>
+          <button class="file-nav-btn" data-file="llm_client_py">llm_client.py</button>
+          
+          <div class="file-dir-title">agents /</div>
+          <button class="file-nav-btn" data-file="search_agent">search_agent.py</button>
+          <button class="file-nav-btn" data-file="scorer_agent">scorer_agent.py</button>
+          <button class="file-nav-btn" data-file="tailoring_agent">tailoring_agent.py</button>
+          <button class="file-nav-btn" data-file="apply_agent">apply_agent.py</button>
+          <button class="file-nav-btn" data-file="outreach_agent">outreach_agent.py</button>
+
+          <div class="file-dir-title">browser /</div>
+          <button class="file-nav-btn" data-file="session_manager">session_manager.py</button>
+          <button class="file-nav-btn" data-file="popup_handler">popup_handler.py</button>
+          <button class="file-nav-btn" data-file="stealth_py">stealth.py</button>
+          <button class="file-nav-btn" data-file="linkedin_flow">linkedin_flow.py</button>
+          <button class="file-nav-btn" data-file="naukri_flow">naukri_flow.py</button>
+          <button class="file-nav-btn" data-file="external_flow">external_flow.py</button>
+          
+          <div class="file-dir-title">memory /</div>
+          <button class="file-nav-btn" data-file="ledger_py">ledger.py</button>
+          <button class="file-nav-btn" data-file="form_memory_py">form_memory.py</button>
+        </div>
+
+        <!-- File Details Content Pane -->
+        <div class="file-content-pane" id="file-content-pane">
+          <!-- Populated dynamically via JS -->
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- JAVASCRIPT FOR CONNECTION DRAWING & INTERACTION -->
+  <script>
+    // ── DATA DEFINITION ───────────────────────────────────────────────────
+    const nodeDetails = {
+      init: {
+        title: "Control Center",
+        category: "Startup",
+        badge: "Boot",
+        badgeClass: "badge-blue",
+        file: "main.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/main.py",
+        desc: "Initializes the application flow. Configures custom OS signals (SIGINT interception) and triggers a background keyboard thread to capture runtime directives cleanly. Safe exit interrupts are verified between job iterations to prevent breaking ongoing form-fills.",
+        symbols: [
+          { name: "_InterruptController", type: "Class", desc: "Handles runtime state flags thread-safely." },
+          { name: "_setup_signal_handlers()", type: "Function", desc: "Maps SIGINT / SIGTERM to trigger graceful stops." },
+          { name: "_start_keyboard_listener()", type: "Function", desc: "Spawns keyboard input daemon (S: skip, Q: quit, P: print status)." }
+        ]
+      },
+      resume: {
+        title: "Resume Loader",
+        category: "Intake",
+        badge: "Resume Reader",
+        badgeClass: "badge-blue",
+        file: "resume/resume_editor.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/resume/resume_editor.py",
+        desc: "Locates the primary resume document based on configured priorities (PDF -> Word -> LaTeX) and reads its raw text contents. Parses the bullet list nodes to prepare them for selective rewriting by the tailoring agent.",
+        symbols: [
+          { name: "_resolve_resume_path()", type: "Function", desc: "Finds the candidate file in base directory folders." },
+          { name: "load_resume(path)", type: "Function", desc: "Dispatches reader based on format and returns text & bullets." },
+          { name: "extract_bullets_from_pdf()", type: "Function", desc: "Uses PDF text miners to parse list items." }
+        ]
+      },
+      search: {
+        title: "Search Agent",
+        category: "Discovery",
+        badge: "Search Feed",
+        badgeClass: "badge-indigo",
+        file: "agents/search_agent.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/agents/search_agent.py",
+        desc: "Asynchronously logs in and queries platforms for desired keywords. Scrolls through job listings and streams individual job parameters back into the orchestrator. Validates whether the URL has already been processed using ledger database queries.",
+        symbols: [
+          { name: "stream_search_agent()", type: "Generator", desc: "Yields JobListing models dynamically in a loop." },
+          { name: "_scrape_linkedin()", type: "Function", desc: "Queries, scrolls, and parses LinkedIn job feeds." },
+          { name: "_scrape_naukri()", type: "Function", desc: "Uses specialized search URLs to fetch Naukri cards." }
+        ]
+      },
+      popup: {
+        title: "Popup Handler Daemon",
+        category: "Browser Sweeper",
+        badge: "Popup Handler",
+        badgeClass: "badge-purple",
+        file: "browser/popup_handler.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/browser/popup_handler.py",
+        desc: "Attaches a daemon to Playwright instances. Intercepts standard dialog alerts (confirm, prompt) and uses regular sweeps matching list selectors to dismiss modal overlays, promotion popups, or chat bubbles that obstruct actions.",
+        symbols: [
+          { name: "PopupHandler", type: "Class", desc: "Stateful utility capturing overlay selectors." },
+          { name: ".start_auto_dismiss()", type: "Method", desc: "Kicks off background timer sweep interval loop." },
+          { name: "safe_goto(page, url)", type: "Function", desc: "Navigates and immediately runs a dismissal cycle." }
+        ]
+      },
+      stealth: {
+        title: "Stealth Simulator",
+        category: "Anti-bot Bypassing",
+        badge: "Stealth",
+        badgeClass: "badge-cyan",
+        file: "browser/stealth.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/browser/stealth.py",
+        desc: "Implements human emulation behaviors inside Playwright to prevent triggering cloud security blocks. Modulates interaction patterns using random delays, curved mouse-clicks, realistic vertical scrolls, and organic typing delays (e.g. 50-120ms).",
+        symbols: [
+          { name: "human_click(page, selector)", type: "Function", desc: "Calculates bounding box center and performs organic click." },
+          { name: "human_type(page, selector, text)", type: "Function", desc: "Types with character delays to simulate fingers." },
+          { name: "get_launch_args()", type: "Function", desc: "Returns chromium parameters to suppress navigator.webdriver flag." }
+        ]
+      },
+      score: {
+        title: "LLM Match Scorer",
+        category: "Graph Logic Node",
+        badge: "Scorer Node",
+        badgeClass: "badge-purple",
+        file: "agents/scorer_agent.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/agents/scorer_agent.py",
+        desc: "Evaluates the parsed job requirements against the loaded resume. Runs a multi-factor matching prompt on the configured LLM. Writes initial record to ledger with the score status and detailed fit reasoning.",
+        symbols: [
+          { name: "run_scorer_agent()", type: "Function", desc: "Calls LLM to check alignment of skills and tenure." },
+          { name: "should_apply(state)", type: "Conditional Edge", desc: "Routes state to 'tailor' (approved) or 'log_skip' (skipped)." },
+          { name: "_is_fresher_jd()", type: "Function", desc: "Uses regex checks to flag fresher vs senior postings." }
+        ]
+      },
+      tailor: {
+        title: "Resume Bullet Tailorer",
+        category: "Graph Logic Node",
+        badge: "Tailoring Node",
+        badgeClass: "badge-purple",
+        file: "agents/tailoring_agent.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/agents/tailoring_agent.py",
+        desc: "Modifies the resume to align with a specific job's keywords. Queries the LLM to rewrite bullet points, then writes back those points to a copy of the base resume template on disk, generating a temporary tailored resume file.",
+        symbols: [
+          { name: "run_tailoring_agent()", type: "Function", desc: "Triggers bullet rewriting and dispatches editor compile." },
+          { name: "_extract_top_keywords()", type: "Function", desc: "Prompts LLM to pull core tech stack targets from JD." },
+          { name: "edit_resume(input, output, edits)", type: "Editor Function", desc: "Modifies LaTeX strings or Docx paragraphs on disk." }
+        ]
+      },
+      apply: {
+        title: "Platform Submitter",
+        category: "Graph Logic Node",
+        badge: "Apply Node",
+        badgeClass: "badge-purple",
+        file: "agents/apply_agent.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/agents/apply_agent.py",
+        desc: "Executes automated submission. Logs in via session cache profiles and navigates to the target URL. Fills dropdowns, text inputs, and file upload selectors recursively using dynamic LLM Q&A.",
+        symbols: [
+          { name: "run_apply_agent()", type: "Function", desc: "Entry point routing by platform source type." },
+          { name: "apply_linkedin_easy_apply()", type: "Flow Function", desc: "Automates multi-page LinkedIn Easy Apply modals." },
+          { name: "apply_naukri()", type: "Flow Function", desc: "Automates Naukri native job submissions." }
+        ]
+      },
+      outreach: {
+        title: "Recruiter Contact Agent",
+        category: "Graph Logic Node",
+        badge: "Outreach Node",
+        badgeClass: "badge-purple",
+        file: "agents/outreach_agent.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/agents/outreach_agent.py",
+        desc: "If the recruiter's name is extracted from the job card and the application succeeded, the agent logs into LinkedIn, searches for the recruiter, drafts a connection request message (< 300 characters), and sends it.",
+        symbols: [
+          { name: "run_outreach_agent()", type: "Function", desc: "Triggers resume summary generation and note creation." },
+          { name: "_send_linkedin_connection()", type: "Function", desc: "Automates Playwright searching, clicking Connect, and message typing." }
+        ]
+      },
+      skip: {
+        title: "Log Skip Endpoint",
+        category: "Flow Endpoint",
+        badge: "Skipped",
+        badgeClass: "badge-red",
+        file: "main.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/main.py",
+        desc: "Invoked when a job doesn't meet the score threshold. Updates the ledger database status to 'skipped' and writes the reasons to the DB for visibility in the Streamlit UI.",
+        symbols: [
+          { name: "log_skip_node()", type: "Function", desc: "Outputs terminal skipping summary and runs upsert." }
+        ]
+      },
+      result: {
+        title: "Log Result Endpoint",
+        category: "Flow Endpoint",
+        badge: "Completed",
+        badgeClass: "badge-green",
+        file: "main.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/main.py",
+        desc: "Final node for processed listings. Handles outcomes: 'applied' (easy apply success), 'manual_apply' (portals with no easy apply, or failed workflows, linking directly on the dashboard), or 'failed'.",
+        symbols: [
+          { name: "log_result_node()", type: "Function", desc: "Logs final statistics and updates DB keys." }
+        ]
+      },
+      ledger: {
+        title: "Ledger Database & Memory",
+        category: "Data Store",
+        badge: "Database",
+        badgeClass: "badge-indigo",
+        file: "memory/ledger.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/memory/ledger.py",
+        desc: "Persistence layer. Consists of a SQLite database ledger.db to log details, and a JSON cache form_memory.json to store fuzzy-matched form labels and answers. Pre-seeded with values from settings and profile_qa.yaml.",
+        symbols: [
+          { name: "upsert_application()", type: "DB Function", desc: "Saves or updates application data." },
+          { name: "get_answer(label)", type: "Memory Function", desc: "Retrieves answers using fuzzy string matching." },
+          { name: "save_answer(label, val)", type: "Memory Function", desc: "Appends new answer pairs to memory." }
+        ]
+      },
+      dashboard: {
+        title: "Streamlit UI Dashboard",
+        category: "Monitoring Dashboard",
+        badge: "Analytics UI",
+        badgeClass: "badge-orange",
+        file: "dashboard/app.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/dashboard/app.py",
+        desc: "Interactive local dashboard built with Streamlit. Queries ledger.db to display application statistics, success rates, match score histograms, generated recruiter outreach notes, and direct links for pending manual applications.",
+        symbols: [
+          { name: "load_data()", type: "Function", desc: "Reads all applications, outreach logs and refresh history." },
+          { name: "main()", type: "Function", desc: "Renders tabs, metrics, dataframes, and manual application action items." }
+        ]
+      }
+    };
+
+    const connections = [
+      { from: 'node-init', to: 'node-resume', color: 'blue' },
+      { from: 'node-resume', to: 'node-search', color: 'blue' },
+      { from: 'node-search', to: 'node-score', color: 'blue' },
+      { from: 'node-score', to: 'node-tailor', color: 'green' },
+      { from: 'node-score', to: 'node-skip', color: 'red' },
+      { from: 'node-tailor', to: 'node-apply', color: 'blue' },
+      { from: 'node-apply', to: 'node-outreach', color: 'green' },
+      { from: 'node-apply', to: 'node-result', color: 'orange' },
+      { from: 'node-outreach', to: 'node-result', color: 'green' },
+      { from: 'node-result', to: 'node-ledger', color: 'blue' },
+      { from: 'node-skip', to: 'node-ledger', color: 'red' },
+      
+      // Secondary references
+      { from: 'node-popup', to: 'node-apply', color: 'purple' },
+      { from: 'node-stealth', to: 'node-apply', color: 'cyan' },
+      { from: 'node-ledger', to: 'node-search', color: 'dashed' },
+      { from: 'node-ledger', to: 'node-dashboard', color: 'dashed' }
+    ];
+
+    const fileDetails = {
+      main_py: {
+        title: "main.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/main.py",
+        desc: "Main engine controller. Instantiates LangGraph orchestrators, binds handlers (SIGINT), launches terminal keyboard listeners, parses resumes, and manages the execution flow over steamed search results.",
+        symbols: [
+          { name: "build_graph()", type: "Graph", desc: "Initializes StateGraph structure, nodes, and routing." },
+          { name: "score_node()", type: "Node", desc: "Invokes LLM scorer agent on current listing." },
+          { name: "tailor_node()", type: "Node", desc: "Calls tailoring agent and registers paths." }
+        ]
+      },
+      config_py: {
+        title: "config.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/config.py",
+        desc: "App configuration. Leverages Pydantic-settings to validate variables parsed from the local .env, configuring thresholds, file targets, and login details.",
+        symbols: [
+          { name: "Settings", type: "Class", desc: "Configuration model defining thresholds and DB targets." },
+          { name: "settings", type: "Instance", desc: "Singleton instance loaded from local environment." }
+        ]
+      },
+      llm_client_py: {
+        title: "llm_client.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/llm_client.py",
+        desc: "LLM abstraction layer. Encapsulates token rates, routing logic, and fallback configurations connecting to Google Gemini API (2.5 Flash), Groq API (Llama models), or local Ollama instances.",
+        symbols: [
+          { name: "call_llm(prompt)", type: "Function", desc: "Dispatches query checking fallbacks dynamically." },
+          { name: "dynamic_qa(q, context)", type: "Function", desc: "Answers application questions using job data." }
+        ]
+      },
+      search_agent: {
+        title: "agents/search_agent.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/agents/search_agent.py",
+        desc: "Discovery agent. Logs in and coordinates job search routines. Gathers raw list items on LinkedIn and Naukri, packages elements into JobListing, and handles internship tag checks.",
+        symbols: [
+          { name: "stream_search_agent()", type: "Generator", desc: "Streams job listing matches sequentially." },
+          { name: "_scrape_linkedin()", type: "Function", desc: "Uses selectors to find and parse LinkedIn job cards." }
+        ]
+      },
+      scorer_agent: {
+        title: "agents/scorer_agent.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/agents/scorer_agent.py",
+        desc: "Evaluation agent. Extracts matching profiles, filters seniority/fresher criteria, structures evaluation prompt metrics, and parses JSON output responses safely.",
+        symbols: [
+          { name: "run_scorer_agent()", type: "Function", desc: "Computes match score rating based on prompt constraints." },
+          { name: "_parse_response()", type: "Function", desc: "Cleans and checks JSON outputs, handles regex fallbacks." }
+        ]
+      },
+      tailoring_agent: {
+        title: "agents/tailoring_agent.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/agents/tailoring_agent.py",
+        desc: "Rewriter agent. Evaluates JDs, identifies missing keywords, prompts LLMs to rewrite resume points to highlight skills, and runs latex/docx compilers on local resume files.",
+        symbols: [
+          { name: "run_tailoring_agent()", type: "Function", desc: "Coordinates keyword checks, LLM edits, and file compiler compilation." }
+        ]
+      },
+      apply_agent: {
+        title: "agents/apply_agent.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/agents/apply_agent.py",
+        desc: "Automation disptacher. Creates or reuses persistent browser profiles, routes tasks to portals, and updates application ledger records.",
+        symbols: [
+          { name: "run_apply_agent()", type: "Function", desc: "Routes application task to LinkedIn flow or Naukri flow." },
+          { name: "_get_or_create_session()", type: "Function", desc: "Caches persistent authenticated page instances." }
+        ]
+      },
+      outreach_agent: {
+        title: "agents/outreach_agent.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/agents/outreach_agent.py",
+        desc: "Networking agent. Generates recruiter connection request notes (< 300 characters), searches names, clicks Connect, and types messages in browser forms.",
+        symbols: [
+          { name: "run_outreach_agent()", type: "Function", desc: "Flashes summaries and triggers connection request flows." }
+        ]
+      },
+      session_manager: {
+        title: "browser/session_manager.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/browser/session_manager.py",
+        desc: "Session caching core. Spins up persistent chromium contexts under browser/session_store/<platform>/ to preserve auth state.",
+        symbols: [
+          { name: "get_persistent_context()", type: "Function", desc: "Spins up persistent browser page directories." },
+          { name: "is_linkedin_logged_in()", type: "Function", desc: "Checks visibility of feed headers to verify active session." }
+        ]
+      },
+      popup_handler: {
+        title: "browser/popup_handler.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/browser/popup_handler.py",
+        desc: "Popup sweep utility. Dismisses overlays, notifications permissions, cookies consent buttons, and chat panels in parallel.",
+        symbols: [
+          { name: "PopupHandler", type: "Class", desc: "Daemon handling popup dismissal methods." },
+          { name: ".dismiss_all()", type: "Method", desc: "Performs full check iteration across registered selectors." }
+        ]
+      },
+      stealth_py: {
+        title: "browser/stealth.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/browser/stealth.py",
+        desc: "Human emulator variables. Emulates mouse tracking, linear typing delays, and scrolling ranges to prevent fingerprint blocking.",
+        symbols: [
+          { name: "human_click_element()", type: "Function", desc: "Calculates bounding dimensions and triggers mouse clicks." }
+        ]
+      },
+      linkedin_flow: {
+        title: "browser/linkedin_flow.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/browser/linkedin_flow.py",
+        desc: "LinkedIn automation script. Validates easy apply tags, uploads resume files, clicks next, resolves form questions, and submits applications.",
+        symbols: [
+          { name: "apply_linkedin_easy_apply()", type: "Function", desc: "Navigates and submits Easy Apply steps." },
+          { name: "_fill_form_fields()", type: "Function", desc: "Handles text, dropdowns, and radio input elements." }
+        ]
+      },
+      naukri_flow: {
+        title: "browser/naukri_flow.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/browser/naukri_flow.py",
+        desc: "Naukri automation script. Signs in, navigates listings, submits resumes, and uploads base resume to refresh search ranking visibility.",
+        symbols: [
+          { name: "apply_naukri()", type: "Function", desc: "Runs native Naukri job submission checks." },
+          { name: "profile_refresh()", type: "Function", desc: "Bumps profile ranking by re-uploading resume documents." }
+        ]
+      },
+      external_flow: {
+        title: "browser/external_flow.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/browser/external_flow.py",
+        desc: "Automator for external career sites. Features form container scoring, dynamic field resolution, next button detection, and file upload overrides.",
+        symbols: [
+          { name: "apply_external_link()", type: "Function", desc: "Orchestrates external career portal automations." }
+        ]
+      },
+      ledger_py: {
+        title: "memory/ledger.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/memory/ledger.py",
+        desc: "Main database CRUD. Maintains SQLite tables tracking application parameters, history, score ratings, and outreach notes.",
+        symbols: [
+          { name: "init_db()", type: "Function", desc: "Initializes SQL tables and executes migrations." },
+          { name: "upsert_application()", type: "Function", desc: "Updates or inserts entries checking url keys." }
+        ]
+      },
+      form_memory_py: {
+        title: "memory/form_memory.py",
+        filePath: "file:///D:/Ai_Agents/job_agent_v3(last%20patch)/memory/form_memory.py",
+        desc: "Autofill value database. Stores label strings and answers. Provides fuzzy string matching to retrieve values.",
+        symbols: [
+          { name: "get_answer()", type: "Function", desc: "Fuzzy queries cache answers (threshold 0.85 Close Matches)." },
+          { name: "_seed_defaults()", type: "Function", desc: "Seeds initial values from settings." }
+        ]
+      }
+    };
+
+
+    // ── INTERACTIVITY LOGIC ───────────────────────────────────────────────
+    
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Toggle Active button
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Toggle Active panel
+        const targetTab = btn.getAttribute('data-tab');
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        document.getElementById(targetTab).classList.add('active');
+
+        // Redraw SVG connectors if flowchart tab is clicked
+        if (targetTab === 'tab-flowchart') {
+          setTimeout(drawAllConnectors, 50);
+        }
+      });
+    });
+
+    // Node Inspection in Flowchart
+    function inspectNode(nodeKey) {
+      // Clear previous active nodes
+      document.querySelectorAll('.node-card').forEach(n => n.classList.remove('active'));
+      
+      // Set current active node
+      const activeNode = document.getElementById(`node-${nodeKey}`);
+      if (activeNode) activeNode.classList.add('active');
+
+      // Highlight corresponding connection lines in SVG
+      highlightConnections(nodeKey);
+
+      // Populate Inspector Sidebar
+      const data = nodeDetails[nodeKey];
+      if (!data) return;
+
+      const badgeColor = data.badgeClass || 'badge-blue';
+      
+      let symbolsHtml = '';
+      if (data.symbols && data.symbols.length > 0) {
+        symbolsHtml = `
+          <div>
+            <div class="inspector-section-title">Key Code Symbols</div>
+            <div class="inspector-list">
+              ${data.symbols.map(sym => `
+                <div class="list-item">
+                  <span class="item-label">${sym.name}</span>
+                  <span class="item-value">${sym.type}</span>
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted); margin: -4px 0 8px 12px;">
+                  ${sym.desc}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      const html = `
+        <div>
+          <div class="inspector-section-title">Component File</div>
+          <div class="file-path">
+            <span>📁 ${data.file}</span>
+            <a href="${data.filePath}" class="file-link" title="Open file in editor">Open Link</a>
+          </div>
+        </div>
+        <div>
+          <div class="inspector-section-title">Logic & Purpose</div>
+          <p class="inspector-desc">${data.desc}</p>
+        </div>
+        ${symbolsHtml}
+      `;
+
+      document.getElementById('ins-title').innerText = data.title;
+      const badge = document.getElementById('ins-badge');
+      badge.innerText = data.badge;
+      badge.className = `inspector-badge ${badgeColor}`;
+      document.getElementById('ins-body').innerHTML = html;
+    }
+
+    // Highlight Connections based on Node
+    function highlightConnections(nodeKey) {
+      // Reset all paths
+      document.querySelectorAll('.connector-line').forEach(path => {
+        path.classList.remove('active');
+      });
+
+      // Find lines linked to the selected node
+      const nodeId = `node-${nodeKey}`;
+      connections.forEach((conn, index) => {
+        if (conn.from === nodeId || conn.to === nodeId) {
+          const path = document.getElementById(`path-${index}`);
+          if (path) path.classList.add('active');
+        }
+      });
+    }
+
+    // Draw SVG Connections
+    function drawAllConnectors() {
+      const svg = document.getElementById('flowchart-svg');
+      // Clear existing paths except <defs>
+      const defs = svg.querySelector('defs');
+      svg.innerHTML = '';
+      svg.appendChild(defs);
+
+      const container = document.getElementById('flowchart-container');
+      const containerRect = container.getBoundingClientRect();
+
+      connections.forEach((conn, index) => {
+        const source = document.getElementById(conn.from);
+        const target = document.getElementById(conn.to);
+        if (!source || !target) return;
+
+        const srcRect = source.getBoundingClientRect();
+        const dstRect = target.getBoundingClientRect();
+
+        const srcX = srcRect.left - containerRect.left + container.scrollLeft;
+        const srcY = srcRect.top - containerRect.top + container.scrollTop;
+        const dstX = dstRect.left - containerRect.left + container.scrollLeft;
+        const dstY = dstRect.top - containerRect.top + container.scrollTop;
+
+        let x1, y1, x2, y2;
+        const dx = dstX - srcX;
+        const dy = dstY - srcY;
+
+        // Establish connection anchor points
+        if (Math.abs(dx) > Math.abs(dy)) {
+          // Horizontal-ish
+          if (dx > 0) {
+            x1 = srcX + srcRect.width;
+            y1 = srcY + srcRect.height / 2;
+            x2 = dstX;
+            y2 = dstY + dstRect.height / 2;
+          } else {
+            x1 = srcX;
+            y1 = srcY + srcRect.height / 2;
+            x2 = dstX + dstRect.width;
+            y2 = dstY + dstRect.height / 2;
+          }
+        } else {
+          // Vertical-ish
+          if (dy > 0) {
+            x1 = srcX + srcRect.width / 2;
+            y1 = srcY + srcRect.height;
+            x2 = dstX + dstRect.width / 2;
+            y2 = dstY;
+          } else {
+            x1 = srcX + srcRect.width / 2;
+            y1 = srcY;
+            x2 = dstX + dstRect.width / 2;
+            y2 = dstY + dstRect.height;
+          }
+        }
+
+        // Generate Bezier path
+        let pathD = '';
+        if (Math.abs(dx) > Math.abs(dy)) {
+          const deltaX = Math.abs(x2 - x1);
+          const cx1 = x1 + deltaX * 0.45 * (x2 > x1 ? 1 : -1);
+          const cx2 = x2 - deltaX * 0.45 * (x2 > x1 ? 1 : -1);
+          pathD = `M ${x1} ${y1} C ${cx1} ${y1}, ${cx2} ${y2}, ${x2} ${y2}`;
+        } else {
+          const deltaY = Math.abs(y2 - y1);
+          const cy1 = y1 + deltaY * 0.45 * (y2 > y1 ? 1 : -1);
+          const cy2 = y2 - deltaY * 0.45 * (y2 > y1 ? 1 : -1);
+          pathD = `M ${x1} ${y1} C ${x1} ${cy1}, ${x2} ${cy2}, ${x2} ${y2}`;
+        }
+
+        // Create Path element
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathD);
+        path.setAttribute('id', `path-${index}`);
+        path.className.baseVal = `connector-line ${conn.color}`;
+        
+        // Add markers for direct arrows (except dashed reference lines)
+        if (conn.color !== 'dashed') {
+          path.setAttribute('marker-end', `url(#arrow-${conn.color})`);
+        }
+
+        svg.appendChild(path);
+      });
+    }
+
+    // Codebase Navigator Interactivity
+    document.querySelectorAll('.file-nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.file-nav-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        const fileKey = btn.getAttribute('data-file');
+        displayFileContent(fileKey);
+      });
+    });
+
+    function displayFileContent(fileKey) {
+      const data = fileDetails[fileKey];
+      if (!data) return;
+
+      let symbolsHtml = '';
+      if (data.symbols && data.symbols.length > 0) {
+        symbolsHtml = `
+          <div class="code-structure-table">
+            <div class="inspector-section-title">Declared Symbols / Exports</div>
+            <div class="inspector-list" style="margin-top: 8px;">
+              ${data.symbols.map(sym => `
+                <div class="list-item">
+                  <span class="item-label">${sym.name}</span>
+                  <span class="item-value" style="color: var(--color-purple); font-size:11px;">${sym.type}</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); padding: 2px 14px 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.02)">
+                  ${sym.desc}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      const html = `
+        <div class="file-pane-title">
+          <span>📄 ${data.title}</span>
+          <a href="${data.filePath}" class="file-link" style="font-size: 13px;">Open File in Editor</a>
+        </div>
+        <div style="font-size:14px; color: var(--text-muted); font-family: 'Fira Code', monospace; background: rgba(0,0,0,0.2); padding: 8px 12px; border-radius:6px; border: 1px solid var(--border-color);">
+          Absolute Path: ${data.filePath}
+        </div>
+        <div>
+          <div class="inspector-section-title">Module Description</div>
+          <p class="inspector-desc">${data.desc}</p>
+        </div>
+        ${symbolsHtml}
+      `;
+
+      document.getElementById('file-content-pane').innerHTML = html;
+    }
+
+    // Initial setup on load
+    window.addEventListener('load', () => {
+      drawAllConnectors();
+      displayFileContent('main_py');
+    });
+
+    // Redraw connectors on screen resize
+    window.addEventListener('resize', drawAllConnectors);
+
+    // Redraw connectors on container scrolls
+    document.getElementById('flowchart-container').addEventListener('scroll', drawAllConnectors);
+
+  </script>
+</body>
+</html>

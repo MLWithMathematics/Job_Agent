@@ -272,9 +272,18 @@ class PopupHandler:
                     try:
                         if await el.is_visible() and await el.is_enabled():
                             # DO NOT dismiss the Easy Apply modal or anything inside it!
-                            # Check if the element is inside .jobs-easy-apply-modal
                             is_in_easy_apply = await el.evaluate(
-                                "el => el.closest('.jobs-easy-apply-modal') !== null"
+                                "el => {"
+                                "  if (el.closest('.jobs-easy-apply-modal, .jobs-easy-apply-content, .jobs-easy-apply')) return true;"
+                                "  const dialog = el.closest('[role=\"dialog\"], .artdeco-modal');"
+                                "  if (dialog) {"
+                                "    const header = dialog.querySelector('h2, h3');"
+                                "    if (header && (header.innerText.includes('Apply') || header.innerText.includes('Contact Info'))) return true;"
+                                "    const text = dialog.innerText || '';"
+                                "    if (text.includes('Submit application') || text.includes('Review your application') || text.includes('Next')) return true;"
+                                "  }"
+                                "  return false;"
+                                "}"
                             )
                             if is_in_easy_apply:
                                 continue
@@ -296,9 +305,16 @@ class PopupHandler:
                 el = await self.page.query_selector(selector)
                 if el and await el.is_visible():
                     # If the Easy Apply modal is open, clicking the overlay will close it!
-                    easy_apply = await self.page.query_selector(".jobs-easy-apply-modal")
+                    easy_apply = await self.page.query_selector(".jobs-easy-apply-modal, .jobs-easy-apply-content")
                     if easy_apply and await easy_apply.is_visible():
                         continue
+
+                    # Also check generic artdeco-modal with Easy Apply content
+                    generic_modal = await self.page.query_selector(".artdeco-modal")
+                    if generic_modal and await generic_modal.is_visible():
+                        has_form = await generic_modal.query_selector("button:has-text('Next'), button:has-text('Submit'), button:has-text('Review')")
+                        if has_form:
+                            continue
 
                     # Click the very edge (top-left corner of viewport) to close
                     await self.page.mouse.click(10, 10)

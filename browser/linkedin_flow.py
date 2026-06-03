@@ -151,6 +151,9 @@ async def apply_linkedin_easy_apply(
     tailored_resume_path: str,
     resume_text: str,
     llm_answer_fn,
+    job_title: str = "",
+    jd_text: str = "",
+    cover_letter_path: str = "",
 ) -> bool:
     """
     Full LinkedIn Easy Apply flow with continuous popup suppression.
@@ -158,11 +161,16 @@ async def apply_linkedin_easy_apply(
     Only automates LinkedIn Easy Apply.  If no Easy Apply button is found,
     returns False so the caller marks it as 'manual_apply'.
 
-    llm_answer_fn: async callable(question: str, resume_text: str) -> str
+    llm_answer_fn: async callable(question: str, resume_text: str, job_context: str) -> str
     Returns True on success, False on failure.
     """
     handler = PopupHandler(page)
     resume_uploaded = False  # track to avoid re-uploading every step
+
+    # Build job context string for role-aware LLM answers
+    _job_context = ""
+    if job_title or jd_text:
+        _job_context = f"Role: {job_title}\n{jd_text[:1200]}" if jd_text else f"Role: {job_title}"
 
     try:
         await safe_goto(page, apply_url, handler=handler)
@@ -236,11 +244,11 @@ async def apply_linkedin_easy_apply(
 
             # Only upload resume once
             if not resume_uploaded:
-                uploaded = await _handle_resume_upload(page, tailored_resume_path)
+                uploaded = await _handle_resume_upload(page, tailored_resume_path, cover_letter_path)
                 if uploaded:
                     resume_uploaded = True
 
-            fields_filled = await _fill_form_fields(page, resume_text, llm_answer_fn)
+            fields_filled = await _fill_form_fields(page, resume_text, llm_answer_fn, _job_context)
             if fields_filled > 0:
                 modal_ever_had_fields = True
 
@@ -270,6 +278,9 @@ async def apply_linkedin_easy_apply(
             last_action = action
 
             if action == "submit":
+                # Scroll modal to bottom so Submit button is in viewport
+                await _scroll_modal_to_bottom(page)
+                await random_delay(0.3, 0.5)
                 await _click_button_by_text(page, ["Submit application", "Submit"])
                 await random_delay(1.5, 2.5)
 
@@ -286,7 +297,7 @@ async def apply_linkedin_easy_apply(
                     return True
                 else:
                     print("[LinkedIn] Submit clicked but modal still open — retrying fields...")
-                    await _fill_form_fields(page, resume_text, llm_answer_fn)
+                    await _fill_form_fields(page, resume_text, llm_answer_fn, _job_context)
                     await _click_button_by_text(page, ["Submit application", "Submit"])
                     await random_delay(1.5, 2.5)
                     modal_retry = await page.query_selector(".jobs-easy-apply-modal, .artdeco-modal")
@@ -591,23 +602,40 @@ async def _find_easy_apply_modal(page: Page):
     return None
 
 
-async def _handle_resume_upload(page: Page, resume_path: str) -> bool:
-    """Upload resume if a file input is visible. Returns True if uploaded."""
+async def _handle_resume_upload(page: Page, resume_path: str, cover_letter_path: str = "") -> bool:
+    """Upload resume (and optionally cover letter) if file inputs are visible.
+    Returns True if at least one file was uploaded."""
     if not resume_path or not os.path.exists(resume_path):
         return False
+
+    uploaded_any = False
     try:
-        upload_input = await page.query_selector("input[type='file']")
-        if upload_input:
-            await upload_input.set_input_files(resume_path)
-            await random_delay(0.5, 1.0)
-            print(f"[LinkedIn] Uploaded resume: {resume_path}")
-            return True
+        upload_inputs = await page.query_selector_all("input[type='file']")
+        for i, upload_input in enumerate(upload_inputs):
+            try:
+                if i == 0:
+                    # First file input → resume
+                    await upload_input.set_input_files(resume_path)
+                    await random_delay(0.5, 1.0)
+                    print(f"[LinkedIn] Uploaded resume: {resume_path}")
+                    uploaded_any = True
+                elif cover_letter_path and os.path.exists(cover_letter_path):
+                    # Additional file inputs → cover letter / portfolio
+                    label = await _get_field_label(page, upload_input)
+                    label_lower = label.lower() if label else ""
+                    if any(kw in label_lower for kw in ("cover", "letter", "additional", "document", "portfolio", "supporting")):
+                        await upload_input.set_input_files(cover_letter_path)
+                        await random_delay(0.5, 1.0)
+                        print(f"[LinkedIn] Uploaded additional document: {cover_letter_path}")
+                        uploaded_any = True
+            except Exception as exc:
+                print(f"[LinkedIn] File upload warning (input #{i}): {exc}")
     except Exception as exc:
         print(f"[LinkedIn] Resume upload warning: {exc}")
-    return False
+    return uploaded_any
 
 
-async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> int:
+async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn, job_context: str = "") -> int:
     """
     Fill all form fields scoped inside the Easy Apply modal.
     Handles: text inputs, native selects, LinkedIn custom dropdowns (typeahead),
@@ -621,6 +649,11 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> int:
     # Scope all queries to the Easy Apply modal specifically
     modal = await _find_easy_apply_modal(page)
     scope = modal or page
+
+    # ── 0. Phone country code selector (do this FIRST) ────────────────
+    cc_filled = await _handle_phone_country_code(page, scope)
+    if cc_filled:
+        filled_count += 1
 
     # ── 1. Text / number / tel / url / email / textarea ───────────────
     inputs = await scope.query_selector_all(
@@ -658,8 +691,13 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> int:
                     del data[norm]
                     _save(data)
 
-            answer = await _resolve_answer(label_text, resume_text, llm_answer_fn)
+            # Detect field type for answer sanitization
+            field_type = await _detect_field_type(label_text, inp)
+
+            answer = await _resolve_answer(label_text, resume_text, llm_answer_fn, job_context)
             if answer:
+                # Sanitize based on field type
+                answer = _sanitize_answer(answer, field_type)
                 try:
                     maxlen = await inp.get_attribute("maxlength")
                     cap = int(maxlen) if maxlen and str(maxlen).isdigit() else 500
@@ -668,9 +706,30 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> int:
                 # Use fast fill for known answers, human_fill only for LLM-generated
                 capped = answer[:cap]
                 await inp.click()
-                await inp.fill(capped)
+                await inp.fill("")
+                # Use type to trigger dropdowns reliably
+                await inp.type(capped, delay=random.randint(10, 30))
+                await random_delay(0.4, 0.7)
+
+                # Check if a dropdown list appeared (LinkedIn sometimes uses standard text inputs for typeaheads)
+                try:
+                    listbox_opts = await scope.query_selector_all(
+                        "[role='option'], [role='listbox'] li, "
+                        ".basic-typeahead__selectable, "
+                        "[class*='typeahead'] li, "
+                        "[id*='typeahead'] li"
+                    )
+                    for opt in listbox_opts:
+                        if await opt.is_visible():
+                            await opt.click()
+                            print(f"[LinkedIn] Picked dropdown option for text field '{label_text}'")
+                            await random_delay(0.2, 0.5)
+                            break
+                except Exception:
+                    pass
+
                 filled_count += 1
-                print(f"[LinkedIn] Filled '{label_text}' -> '{capped[:50]}'")
+                print(f"[LinkedIn] Filled '{label_text}' -> '{capped[:50]}' (type={field_type})")
                 await random_delay(0.2, 0.5)
         except Exception as exc:
             print(f"[LinkedIn] Text field warning: {exc}")
@@ -731,7 +790,7 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> int:
             # LLM fallback
             if opts:
                 ans = await llm_answer_fn(
-                    f"{label_text} (choose one: {', '.join(opts[:20])})", resume_text
+                    f"{label_text} (choose one: {', '.join(opts[:20])})", resume_text, job_context
                 )
                 if ans:
                     best = _best_option_match(ans, opts)
@@ -771,7 +830,7 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> int:
                     label_text = await _get_field_label(page, ta)
                     if not label_text:
                         continue
-                    answer = await _resolve_answer(label_text, resume_text, llm_answer_fn)
+                    answer = await _resolve_answer(label_text, resume_text, llm_answer_fn, job_context)
                     if not answer:
                         continue
                     # Type the answer to trigger the dropdown
@@ -843,7 +902,7 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> int:
                 opts_str = ", ".join(rl for rl in radio_labels if rl)
                 if opts_str:
                     ans = await llm_answer_fn(
-                        f"{label_text} (choose one: {opts_str})", resume_text
+                        f"{label_text} (choose one: {opts_str})", resume_text, job_context
                     )
                     if ans:
                         best = _best_option_match(ans, radio_labels)
@@ -892,7 +951,7 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> int:
                     saved = "Yes"
                 else:
                     ans = await llm_answer_fn(
-                        f"Checkbox question: '{label_text}'. Should I check it? (Reply 'Yes' or 'No' only)", resume_text
+                        f"Checkbox question: '{label_text}'. Should I check it? (Reply 'Yes' or 'No' only)", resume_text, job_context
                     )
                     saved = "Yes" if (ans and "yes" in ans.lower() and "no" not in ans.lower()) else "No"
                 save_answer(label_text, saved)
@@ -912,6 +971,169 @@ async def _fill_form_fields(page: Page, resume_text: str, llm_answer_fn) -> int:
             pass
 
     return filled_count
+
+
+# ── Phone country code handler (Component 3) ─────────────────────────────────
+
+async def _handle_phone_country_code(page: Page, scope) -> bool:
+    """
+    Select the correct phone country code in LinkedIn's phone field.
+    LinkedIn uses a native <select> for the country code.
+    Returns True if a selection was made.
+    """
+    from config import settings as _settings
+
+    target_code = _settings.phone_country_code  # e.g. "India (+91)"
+    if not target_code:
+        return False
+
+    try:
+        # LinkedIn's phone country code selector
+        cc_selectors = [
+            "select[id*='phoneCountryCode']",
+            "select[name*='phoneCountryCode']",
+            "select[id*='country-code']",
+            "select[aria-label*='country code']",
+            "select[aria-label*='Country code']",
+            "select[data-test-text-selectable-option]",
+        ]
+        for sel in cc_selectors:
+            cc_select = await scope.query_selector(sel)
+            if cc_select and await cc_select.is_visible():
+                # Check if already set correctly
+                cur = await cc_select.input_value()
+                if cur:
+                    try:
+                        selected_opt = await cc_select.query_selector("option:checked")
+                        if selected_opt:
+                            cur_text = (await selected_opt.inner_text()).strip()
+                            if target_code.lower() in cur_text.lower():
+                                return False  # Already correct
+                    except Exception:
+                        pass
+
+                # Try selecting by label text
+                try:
+                    await cc_select.select_option(label=target_code)
+                    await random_delay(0.3, 0.5)
+                    print(f"[LinkedIn] Phone country code -> '{target_code}'")
+                    return True
+                except Exception:
+                    pass
+
+                # Fallback: try partial match on option labels
+                options = await cc_select.query_selector_all("option")
+                for opt in options:
+                    opt_text = (await opt.inner_text()).strip()
+                    if target_code.lower() in opt_text.lower():
+                        opt_val = await opt.get_attribute("value")
+                        if opt_val:
+                            await cc_select.select_option(value=opt_val)
+                            await random_delay(0.3, 0.5)
+                            print(f"[LinkedIn] Phone country code -> '{opt_text}'")
+                            return True
+    except Exception as exc:
+        print(f"[LinkedIn] Phone country code warning: {exc}")
+    return False
+
+
+# ── Field type detection (Component 2) ────────────────────────────────────────
+
+import re as _re
+from datetime import date as _date
+
+
+async def _detect_field_type(label: str, element) -> str:
+    """
+    Determine the expected answer format based on the HTML input type
+    and the label text.
+    Returns: 'numeric', 'date', 'url', 'email', 'phone', or 'text'.
+    """
+    try:
+        input_type = (await element.get_attribute("type") or "").lower()
+    except Exception:
+        input_type = ""
+
+    if input_type == "number":
+        return "numeric"
+    if input_type == "date":
+        return "date"
+    if input_type == "url":
+        return "url"
+    if input_type == "email":
+        return "email"
+    if input_type == "tel":
+        return "phone"
+
+    # Label-based detection for text inputs
+    label_lower = label.lower()
+    if any(kw in label_lower for kw in (
+        "how many years", "years of experience", "years of work",
+        "number of", "how many", "total experience",
+    )):
+        return "numeric"
+    if any(kw in label_lower for kw in ("url", "link", "website")):
+        return "url"
+
+    return "text"
+
+
+def _sanitize_answer(answer: str, field_type: str) -> str:
+    """
+    Post-process an answer based on the detected field type.
+    Ensures numeric fields get pure numbers, dates get YYYY-MM-DD, etc.
+    """
+    if not answer:
+        return answer
+
+    if field_type == "numeric":
+        # Extract the first number from the answer
+        nums = _re.findall(r"\d+(?:\.\d+)?", answer)
+        if nums:
+            return nums[0]
+        # Word-number fallback
+        word_map = {
+            "zero": "0", "one": "1", "two": "2", "three": "3",
+            "four": "4", "five": "5", "six": "6", "seven": "7",
+            "eight": "8", "nine": "9", "ten": "10",
+            "none": "0", "nil": "0", "no": "0",
+        }
+        for word, digit in word_map.items():
+            if word in answer.lower().split():
+                return digit
+        return "0"  # safe default for numeric fields
+
+    elif field_type == "date":
+        # If already in YYYY-MM-DD format, return as-is
+        if _re.match(r"\d{4}-\d{2}-\d{2}$", answer.strip()):
+            return answer.strip()
+        # Convert common phrases to today's date
+        if any(kw in answer.lower() for kw in ("immediate", "now", "asap", "today")):
+            return _date.today().isoformat()
+        # Try to extract a date-like pattern
+        m = _re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", answer)
+        if m:
+            return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
+        # Fallback: return today's date
+        return _date.today().isoformat()
+
+    elif field_type == "url":
+        answer = answer.strip()
+        if answer.lower() in ("n/a", "na", "none", "nil", "-", ""):
+            return ""
+        if not answer.startswith(("http://", "https://")):
+            answer = "https://" + answer
+        return answer
+
+    elif field_type == "phone":
+        # Strip non-digit/plus characters
+        clean = _re.sub(r"[^\d+]", "", answer)
+        if clean and not clean.startswith("+"):
+            clean = "+91" + clean  # Default to India
+        return clean or answer
+
+    return answer
+
 
 
 def _best_option_match(answer: str, options: list[str]) -> str | None:
@@ -1007,7 +1229,7 @@ def _settings_sync_answer(label: str) -> Optional[str]:
 
 
 async def _resolve_answer(
-    label: str, resume_text: str, llm_answer_fn
+    label: str, resume_text: str, llm_answer_fn, job_context: str = ""
 ) -> Optional[str]:
     """Settings map → memory cache → LLM.  No stdin prompts."""
     # 1. Settings map (instant, no API call)
@@ -1026,7 +1248,7 @@ async def _resolve_answer(
     # 3. LLM (fully automatic — no stdin blocking)
     print(f"[LLM] Dynamic Q: '{label}'")
     try:
-        answer = await llm_answer_fn(label, resume_text)
+        answer = await llm_answer_fn(label, resume_text, job_context)
     except Exception as exc:
         print(f"[LLM] Failed for '{label}': {exc}")
         return None
@@ -1122,11 +1344,62 @@ async def _get_field_label(page: Page, element) -> str:
     return ""
 
 
+async def _scroll_modal_to_bottom(page: Page) -> None:
+    """
+    Scroll the Easy Apply modal's scrollable content area to the bottom
+    so that the Submit/Review/Next button becomes visible in the viewport.
+    LinkedIn's modal has a scrollable inner container — we need to scroll
+    THAT element, not the page itself.
+    """
+    try:
+        scrolled = await page.evaluate("""
+            () => {
+                // Try LinkedIn-specific scrollable containers first
+                const selectors = [
+                    '.jobs-easy-apply-modal .jobs-easy-apply-content',
+                    '.jobs-easy-apply-modal .artdeco-modal__content',
+                    '.jobs-easy-apply-modal [class*="body"]',
+                    '.artdeco-modal .artdeco-modal__content',
+                    '.artdeco-modal [class*="body"]',
+                    '[role="dialog"] [class*="content"]',
+                    '[role="dialog"] [class*="body"]',
+                ];
+                for (const sel of selectors) {
+                    const el = document.querySelector(sel);
+                    if (el && el.scrollHeight > el.clientHeight + 10) {
+                        el.scrollTop = el.scrollHeight;
+                        return true;
+                    }
+                }
+                // Fallback: scroll any scrollable child inside the modal
+                const modal = document.querySelector(
+                    '.jobs-easy-apply-modal, .artdeco-modal, [role="dialog"]'
+                );
+                if (modal) {
+                    const children = modal.querySelectorAll('*');
+                    for (const child of children) {
+                        if (child.scrollHeight > child.clientHeight + 50) {
+                            child.scrollTop = child.scrollHeight;
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+        """)
+        if scrolled:
+            print("[LinkedIn] Scrolled modal content to bottom.")
+    except Exception as exc:
+        print(f"[LinkedIn] Modal scroll warning: {exc}")
+
+
 async def _get_next_action(page: Page, step: int = 0) -> str:
     """
     Determine next action from visible buttons INSIDE the Easy Apply modal.
     Scoped to modal only — prevents background page 'Apply' buttons from
     being misdetected as submit actions.
+
+    Scrolls the modal content to reveal buttons that may be below the fold.
     """
     button_map = {
         "submit application": "submit",
@@ -1151,8 +1424,40 @@ async def _get_next_action(page: Page, step: int = 0) -> str:
     except Exception:
         return "unknown"
 
+    # First pass: check already-visible buttons
     for btn in buttons:
         try:
+            if not await btn.is_visible():
+                continue
+            txt = (await btn.inner_text()).strip().lower()
+            if not txt:
+                txt = (await btn.get_attribute("aria-label") or "").strip().lower()
+
+            for key, action in button_map.items():
+                if key == txt or key in txt:
+                    return action
+        except Exception:
+            continue
+
+    # Second pass: scroll modal to bottom and re-check — the Submit button
+    # is often below the fold on the final review page
+    await _scroll_modal_to_bottom(page)
+    await asyncio.sleep(0.3)
+
+    try:
+        buttons = await modal.query_selector_all(
+            "button, a.artdeco-button, div[role='button']"
+        )
+    except Exception:
+        return "unknown"
+
+    for btn in buttons:
+        try:
+            # scroll_into_view_if_needed ensures the button is in the viewport
+            try:
+                await btn.scroll_into_view_if_needed()
+            except Exception:
+                pass
             if not await btn.is_visible():
                 continue
             txt = (await btn.inner_text()).strip().lower()
@@ -1169,7 +1474,8 @@ async def _get_next_action(page: Page, step: int = 0) -> str:
 
 
 async def _click_button_by_text(page: Page, texts: list[str]) -> None:
-    """Click a button identified by its visible text, scoped to Easy Apply modal."""
+    """Click a button identified by its visible text, scoped to Easy Apply modal.
+    Scrolls the button into view before clicking to handle off-screen buttons."""
     # Scope to modal to avoid clicking background buttons
     scope = await _find_easy_apply_modal(page) or page
 
@@ -1183,9 +1489,17 @@ async def _click_button_by_text(page: Page, texts: list[str]) -> None:
             ]
             for sel in selectors:
                 btn = await scope.query_selector(sel)
-                if btn and await btn.is_visible():
-                    await human_click_element(btn, page)
-                    return
+                if btn:
+                    # Scroll the button into view first — it may be below the
+                    # fold inside the modal's scrollable content area
+                    try:
+                        await btn.scroll_into_view_if_needed()
+                        await asyncio.sleep(0.2)
+                    except Exception:
+                        pass
+                    if await btn.is_visible():
+                        await human_click_element(btn, page)
+                        return
         except Exception:
             continue
 

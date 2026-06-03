@@ -31,7 +31,13 @@ def _save(data: Dict[str, str]) -> None:
 
 
 def _seed_defaults() -> None:
-    """Pre-populate from .env values if memory file is empty / missing."""
+    """Pre-populate from .env values if memory file is empty / missing.
+
+    Priority (highest → lowest):
+      1. Existing form_memory entries (user-corrected) — NEVER overwritten
+      2. profile_qa.yaml values  (loaded separately via _seed_from_profile_qa)
+      3. Settings / env defaults — THIS function (lowest priority)
+    """
     data = _load()
     full_name = settings.full_name or " ".join(
         part for part in (settings.first_name, settings.last_name) if part
@@ -110,13 +116,13 @@ def _seed_defaults() -> None:
         "gender": settings.gender,
         "nationality": settings.nationality,
         # Common yes/no questions answered by default
-        "are you a fresher": "No",
-        "fresher": "No",
+        "are you a fresher": "Yes" if settings.total_experience_years in ("0", "") else "No",
+        "fresher": "Yes" if settings.total_experience_years in ("0", "") else "No",
         "are you currently employed": "Yes" if settings.current_company else "No",
         "currently employed": "Yes" if settings.current_company else "No",
         "willing to relocate": "Yes",
         "open to relocation": "Yes",
-        "immediate joiner": "Yes" if settings.notice_period in ("0", "immediate", "Immediate") else "No",
+        "immediate joiner": "Yes" if settings.notice_period in ("0", "immediate", "Immediate", "Immediately") else "No",
     }
     updated = False
     for key, val in defaults.items():
@@ -207,6 +213,12 @@ def _seed_from_profile_qa() -> None:
         if norm not in data:
             data[norm] = val
             updated = True
+        elif data[norm] != val:
+            # Conflict detection: profile_qa and form_memory disagree
+            print(
+                f"[FormMemory] ⚠ Conflict: '{norm}' = '{data[norm]}' (form_memory) "
+                f"vs '{val}' (profile_qa.yaml) — keeping form_memory value."
+            )
 
     if updated:
         _save(data)
